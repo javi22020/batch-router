@@ -12,6 +12,7 @@ dependencies = [
     "anthropic>=0.72.0",
     "google-genai>=1.48.0",
     "openai>=2.7.1",
+    "pytest-asyncio>=1.2.0",
 ]
 
 [dependency-groups]
