@@ -89,7 +89,7 @@ class TestBaseProvider:
         assert isinstance(path, Path)
         assert str(path).endswith("batch_batch_123_unified.jsonl")
         assert "mock" in str(path)
-        assert ".batch_router/generated" in str(path)
+        assert ".batch_router/generated" in path.as_posix()
 
     def test_get_batch_file_path_different_types(self):
         """Test get_batch_file_path with different file types."""
@@ -97,7 +97,7 @@ class TestBaseProvider:
 
         for file_type in ["unified", "provider", "output", "results"]:
             path = provider.get_batch_file_path("batch_123", file_type)
-            assert f"batch_123_{file_type}.jsonl" in str(path)
+            assert f"batch_123_{file_type}.jsonl" in path.as_posix()
 
     def test_get_batch_file_path_creates_directory(self):
         """Test that get_batch_file_path creates directory."""
