@@ -25,10 +25,10 @@ batch_router/
 │   └── base.py                      # BaseProvider abstract class
 ├── providers/                       # Provider implementations
 │   ├── __init__.py
-│   ├── openai.py                    # OpenAI Batch API implementation
-│   ├── anthropic.py                 # Anthropic Message Batches API
-│   ├── google.py                    # Google GenAI Batch API
-│   └── vllm.py                      # vLLM run-batch subprocess
+│   ├── openai_provider.py                    # OpenAI Batch API implementation
+│   ├── anthropic_provider.py                 # Anthropic Message Batches API
+│   ├── google_provider.py                    # Google GenAI Batch API
+│   └── vllm_provider.py                      # vLLM run-batch subprocess
 ├── router.py                        # BatchRouter orchestration
 ├── utils/                           # Shared utilities
 │   ├── __init__.py
