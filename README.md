@@ -2,6 +2,10 @@
 
 A Python package designed to facilitate batch LLM requests efficiently across multiple providers with a unified interface.
 
+> [!NOTE]
+> **We're Looking for Contributors!**
+> This project is actively seeking contributors to help improve and expand the batch-router library. Whether you're interested in adding new features, improving documentation, fixing bugs, or adding support for additional providers, your contributions are welcome!
+
 ## Overview
 
 Batch Router provides a standardized way to send batch requests to different LLM providers (OpenAI, Anthropic, Google, and vLLM), abstracting away provider-specific formats and APIs. This allows you to:
