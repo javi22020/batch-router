@@ -75,6 +75,7 @@ class UnifiedBatchMetadata:
     provider: str  # "openai", "anthropic", "google", "vllm"
     requests: list[UnifiedRequest]
     metadata: dict[str, Any] = field(default_factory=dict)
+    name: Optional[str] = None  # Optional custom name for generated files
 
     def __post_init__(self):
         """Validate batch metadata."""

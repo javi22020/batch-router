@@ -1,9 +1,40 @@
 """JSONL file operations and directory management."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any, AsyncIterator
 import aiofiles
+
+
+def sanitize_filename_component(component: str) -> str:
+    """
+    Sanitize a filename component for safe file naming.
+
+    Rules:
+    - Only allows alphanumeric characters (a-z, A-Z, 0-9) and dashes (-)
+    - Replaces underscores with dashes
+    - Removes all other characters
+
+    Args:
+        component: String to sanitize
+
+    Returns:
+        Sanitized string safe for use in filenames
+
+    Examples:
+        >>> sanitize_filename_component("my_model")
+        'my-model'
+        >>> sanitize_filename_component("gpt-4o")
+        'gpt-4o'
+        >>> sanitize_filename_component("test@#$batch")
+        'testbatch'
+    """
+    # First, replace underscores with dashes
+    sanitized = component.replace("_", "-")
+    # Then, keep only alphanumeric characters and dashes
+    sanitized = re.sub(r"[^a-zA-Z0-9-]", "", sanitized)
+    return sanitized
 
 
 class FileManager:

@@ -248,3 +248,34 @@ class TestUnifiedBatchMetadata:
             requests=requests
         )
         assert len(batch.requests) == 2
+
+    def test_batch_metadata_with_name(self):
+        """Test UnifiedBatchMetadata with custom name attribute."""
+        requests = [
+            UnifiedRequest(
+                custom_id="req1",
+                model="gpt-4o",
+                messages=[UnifiedMessage.from_text("user", "Hello")]
+            )
+        ]
+        batch = UnifiedBatchMetadata(
+            provider="openai",
+            requests=requests,
+            name="my_custom_batch"
+        )
+        assert batch.name == "my_custom_batch"
+
+    def test_batch_metadata_without_name(self):
+        """Test UnifiedBatchMetadata defaults to None for name."""
+        requests = [
+            UnifiedRequest(
+                custom_id="req1",
+                model="gpt-4o",
+                messages=[UnifiedMessage.from_text("user", "Hello")]
+            )
+        ]
+        batch = UnifiedBatchMetadata(
+            provider="openai",
+            requests=requests
+        )
+        assert batch.name is None
