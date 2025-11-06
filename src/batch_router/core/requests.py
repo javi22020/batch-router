@@ -71,6 +71,7 @@ class UnifiedBatchMetadata:
     """
     Batch metadata before sending to provider.
     This is NOT the response - just the input specification.
+    name is an optional custom name for generated files, useful for test tracking. If provided, the name will be used as a prefix for any output files related to this batch.
     """
     provider: str  # "openai", "anthropic", "google", "vllm"
     requests: list[UnifiedRequest]
