@@ -366,13 +366,20 @@ class VLLMProvider(BaseProvider):
         # Generate batch ID
         batch_id = self._generate_batch_id()
 
+        # Extract custom naming parameters
+        custom_name = batch.name
+        model = batch.requests[0].model if batch.requests else None
+
+        # Save metadata for later use in get_results
+        self._save_batch_metadata(batch_id, custom_name, model)
+
         # Convert to provider format
         provider_requests = self._convert_to_provider_format(batch.requests)
 
         # Get file paths
-        unified_path = self.get_batch_file_path(batch_id, "unified")
-        provider_path = self.get_batch_file_path(batch_id, "provider")
-        output_path = self.get_batch_file_path(batch_id, "output")
+        unified_path = self.get_batch_file_path(batch_id, "unified", custom_name, model)
+        provider_path = self.get_batch_file_path(batch_id, "provider", custom_name, model)
+        output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
 
         # Save unified format
         unified_data = [req.to_dict() for req in batch.requests]
@@ -594,11 +601,14 @@ class VLLMProvider(BaseProvider):
         # Read output file
         provider_results = await self._read_jsonl(str(output_file))
 
+        # Load batch metadata for consistent file naming
+        custom_name, model = self._load_batch_metadata(batch_id)
+
         # Convert to unified format
         unified_results = self._convert_from_provider_format(provider_results)
 
         # Save unified results
-        results_path = self.get_batch_file_path(batch_id, "results")
+        results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
         unified_dicts = [
             {
                 "custom_id": r.custom_id,

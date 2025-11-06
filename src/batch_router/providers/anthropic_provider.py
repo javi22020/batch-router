@@ -283,17 +283,24 @@ class AnthropicProvider(BaseProvider):
         except Exception as e:
             raise Exception(f"Failed to create Anthropic batch: {str(e)}") from e
 
+        # Extract custom naming parameters
+        custom_name = batch.name
+        model = batch.requests[0].model if batch.requests else None
+
+        # Save metadata for later use in get_results
+        self._save_batch_metadata(batch_id, custom_name, model)
+
         # Save files for transparency
         try:
             # Save unified format
-            unified_path = self.get_batch_file_path(batch_id, "unified")
+            unified_path = self.get_batch_file_path(batch_id, "unified", custom_name, model)
             await self._write_jsonl(
                 unified_path,
                 [req.to_dict() for req in batch.requests]
             )
 
             # Save provider format
-            provider_path = self.get_batch_file_path(batch_id, "provider")
+            provider_path = self.get_batch_file_path(batch_id, "provider", custom_name, model)
             await self._write_jsonl(provider_path, anthropic_requests)
         except Exception as e:
             # Log but don't fail the batch
@@ -452,13 +459,16 @@ class AnthropicProvider(BaseProvider):
                 unified_result = self._convert_from_provider_format([result_dict])[0]
                 yield unified_result
 
+            # Load batch metadata for consistent file naming
+            custom_name, model = self._load_batch_metadata(batch_id)
+
             # Save raw results
-            output_path = self.get_batch_file_path(batch_id, "output")
+            output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
             await self._write_jsonl(output_path, raw_results)
 
             # Save unified results
             unified_results = self._convert_from_provider_format(raw_results)
-            results_path = self.get_batch_file_path(batch_id, "results")
+            results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
             await self._write_jsonl(
                 results_path,
                 [

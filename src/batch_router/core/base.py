@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Any, AsyncIterator
 from pathlib import Path
+import json
 from .requests import UnifiedRequest, UnifiedBatchMetadata
 from .responses import BatchStatusResponse, UnifiedResult
 
@@ -211,10 +212,71 @@ class BaseProvider(ABC):
     # HELPER METHODS (can be overridden if needed)
     # ========================================================================
 
+    def _save_batch_metadata(
+        self,
+        batch_id: str,
+        custom_name: Optional[str],
+        model: Optional[str]
+    ) -> None:
+        """
+        Save batch metadata for later retrieval.
+
+        This allows get_results to use the same file naming scheme as send_batch.
+
+        Args:
+            batch_id: Batch identifier
+            custom_name: Custom name from UnifiedBatchMetadata.name
+            model: Model name from the first request
+        """
+        if not custom_name or not model:
+            return  # No metadata to save
+
+        metadata = {
+            "custom_name": custom_name,
+            "model": model
+        }
+
+        batch_dir_path = ".batch_router/generated"
+        base_dir = Path(batch_dir_path) / self.name
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        meta_file = base_dir / f"batch_{batch_id}.meta.json"
+        with open(meta_file, 'w') as f:
+            json.dump(metadata, f)
+
+    def _load_batch_metadata(
+        self,
+        batch_id: str
+    ) -> tuple[Optional[str], Optional[str]]:
+        """
+        Load batch metadata if it exists.
+
+        Args:
+            batch_id: Batch identifier
+
+        Returns:
+            Tuple of (custom_name, model) or (None, None) if no metadata exists
+        """
+        batch_dir_path = ".batch_router/generated"
+        base_dir = Path(batch_dir_path) / self.name
+        meta_file = base_dir / f"batch_{batch_id}.meta.json"
+
+        if not meta_file.exists():
+            return None, None
+
+        try:
+            with open(meta_file, 'r') as f:
+                metadata = json.load(f)
+            return metadata.get("custom_name"), metadata.get("model")
+        except (json.JSONDecodeError, IOError):
+            return None, None
+
     def get_batch_file_path(
         self,
         batch_id: str,
-        file_type: str
+        file_type: str,
+        custom_name: Optional[str] = None,
+        model: Optional[str] = None
     ) -> Path:
         """
         Get path for batch file.
@@ -222,16 +284,38 @@ class BaseProvider(ABC):
         Args:
             batch_id: Batch identifier
             file_type: One of "unified", "provider", "output", "results"
+            custom_name: Optional custom name for the file (from UnifiedBatchMetadata.name)
+            model: Optional model name (used with custom_name)
 
         Returns:
             Path to the file
+
+        Note:
+            If custom_name is provided, the filename format will be:
+            {name}_{model}_{provider}_{file_type}.jsonl
+
+            All components are sanitized (alphanumeric + dashes only, underscores replaced).
         """
         # Import here to avoid circular dependency
         from pathlib import Path
+        from ..utils import sanitize_filename_component
 
         # Base directory for batch files
         batch_dir_path = ".batch_router/generated"
         base_dir = Path(batch_dir_path) / self.name
         base_dir.mkdir(parents=True, exist_ok=True)
 
-        return base_dir / f"batch_{batch_id}_{file_type}.jsonl"
+        # Generate filename based on whether custom_name is provided
+        if custom_name and model:
+            # Use custom naming format: {name}_{model}_{provider}_{file_type}.jsonl
+            sanitized_name = sanitize_filename_component(custom_name)
+            sanitized_model = sanitize_filename_component(model)
+            sanitized_provider = sanitize_filename_component(self.name)
+            sanitized_file_type = sanitize_filename_component(file_type)
+
+            filename = f"{sanitized_name}_{sanitized_model}_{sanitized_provider}_{sanitized_file_type}.jsonl"
+        else:
+            # Use default naming format: batch_{batch_id}_{file_type}.jsonl
+            filename = f"batch_{batch_id}_{file_type}.jsonl"
+
+        return base_dir / filename

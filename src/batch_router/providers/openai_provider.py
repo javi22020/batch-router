@@ -340,9 +340,16 @@ class OpenAIProvider(BaseProvider):
 
         batch_id = batch_response.id
 
+        # Extract custom naming parameters
+        custom_name = batch.name
+        model = batch.requests[0].model if batch.requests else None
+
+        # Save metadata for later use in get_results
+        self._save_batch_metadata(batch_id, custom_name, model)
+
         # Now save the files with proper batch_id
-        unified_path = self.get_batch_file_path(batch_id, "unified")
-        provider_path = self.get_batch_file_path(batch_id, "provider")
+        unified_path = self.get_batch_file_path(batch_id, "unified", custom_name, model)
+        provider_path = self.get_batch_file_path(batch_id, "provider", custom_name, model)
 
         # Save unified format
         unified_data = [req.to_dict() for req in batch.requests]
@@ -468,15 +475,18 @@ class OpenAIProvider(BaseProvider):
         output_lines = output_content.strip().split("\n")
         provider_results = [json.loads(line) for line in output_lines if line.strip()]
 
+        # Load batch metadata for consistent file naming
+        custom_name, model = self._load_batch_metadata(batch_id)
+
         # Save raw output
-        output_path = self.get_batch_file_path(batch_id, "output")
+        output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
         await self._write_jsonl(str(output_path), provider_results)
 
         # Convert to unified format
         unified_results = self._convert_from_provider_format(provider_results)
 
         # Save unified results
-        results_path = self.get_batch_file_path(batch_id, "results")
+        results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
         unified_dicts = [
             {
                 "custom_id": r.custom_id,

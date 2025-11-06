@@ -312,18 +312,25 @@ class GoogleProvider(BaseProvider):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
             local_batch_id = f"google_{timestamp}"
 
+            # Extract custom naming parameters
+            custom_name = batch.name
+            model = batch.requests[0].model if batch.requests else None
+
+            # Save metadata for later use in get_results
+            self._save_batch_metadata(local_batch_id, custom_name, model)
+
             # Step 1: Convert to Google format
             google_requests = self._convert_to_provider_format(batch.requests)
 
             # Step 2: Save unified format
-            unified_path = self.get_batch_file_path(local_batch_id, "unified")
+            unified_path = self.get_batch_file_path(local_batch_id, "unified", custom_name, model)
             await FileManager.write_jsonl(
                 unified_path,
                 [req.to_dict() for req in batch.requests]
             )
 
             # Step 3: Save provider format
-            provider_path = self.get_batch_file_path(local_batch_id, "provider")
+            provider_path = self.get_batch_file_path(local_batch_id, "provider", custom_name, model)
             await FileManager.write_jsonl(provider_path, google_requests)
 
             # Step 4: Upload JSONL file to Google
@@ -569,16 +576,19 @@ class GoogleProvider(BaseProvider):
                             result_dict["error"] = self._error_to_dict(inline_response.error)
                         results_data.append(result_dict)
 
+            # Load batch metadata for consistent file naming
+            custom_name, model = self._load_batch_metadata(local_batch_id)
+
             # Step 4: Save raw output
             if results_data:
-                output_path = self.get_batch_file_path(local_batch_id, "output")
+                output_path = self.get_batch_file_path(local_batch_id, "output", custom_name, model)
                 await FileManager.write_jsonl(output_path, results_data)
 
             # Step 5: Convert to unified format
             unified_results = self._convert_from_provider_format(results_data)
 
             # Step 6: Save unified results
-            results_path = self.get_batch_file_path(local_batch_id, "results")
+            results_path = self.get_batch_file_path(local_batch_id, "results", custom_name, model)
             await FileManager.write_jsonl(
                 results_path,
                 [
