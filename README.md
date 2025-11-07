@@ -8,7 +8,7 @@ A Python package designed to facilitate batch LLM requests efficiently across mu
 
 ## Overview
 
-Batch Router provides a standardized way to send batch requests to different LLM providers (OpenAI, Anthropic, Google, and vLLM), abstracting away provider-specific formats and APIs. This allows you to:
+Batch Router provides a standardized way to send batch requests to different LLM providers (OpenAI, Anthropic, Google, Mistral, and vLLM), abstracting away provider-specific formats and APIs. This allows you to:
 
 - Write requests once in a unified format
 - Switch between providers seamlessly
@@ -19,7 +19,7 @@ Batch Router provides a standardized way to send batch requests to different LLM
 ## Features
 
 - **Unified Request Format**: Single format for all providers
-- **Multi-Provider Support**: OpenAI, Anthropic (Claude), Google (Gemini), and vLLM (local)
+- **Multi-Provider Support**: OpenAI, Anthropic (Claude), Google (Gemini), Mistral, and vLLM (local)
 - **Cost Reduction**: Leverage batch APIs for up to 50% cost savings (OpenAI)
 - **Async Support**: Fully asynchronous operations
 - **Type Safe**: Comprehensive type hints throughout
@@ -37,6 +37,7 @@ pip install batch-router
 pip install batch-router[anthropic]
 pip install batch-router[openai]
 pip install batch-router[google]
+pip install batch-router[mistral]
 
 # For local processing with vLLM
 pip install vllm
@@ -146,6 +147,18 @@ from batch_router import GoogleProvider
 provider = GoogleProvider(api_key="...")
 ```
 
+### Mistral
+- **API**: Batch Inference API
+- **Cost**: Reduced pricing for batch operations
+- **Completion**: Varies by batch size
+- **Models**: Mistral models (mistral-small-latest, mistral-large-latest, etc.)
+
+```python
+from batch_router import MistralProvider
+
+provider = MistralProvider(api_key="...")
+```
+
 ### vLLM (Local)
 - **API**: Local batch processing via vLLM CLI
 - **Cost**: Free (runs locally)
@@ -186,6 +199,7 @@ System prompts are handled differently by each provider:
 - **OpenAI**: Converted to a message with `role="system"`
 - **Anthropic**: Uses the `system` parameter
 - **Google**: Uses `systemInstruction` in config
+- **Mistral**: Converted to a message with `role="system"`
 - **vLLM**: Converted to a message with `role="system"` (OpenAI-compatible)
 
 Batch Router abstracts this at the request level with `system_prompt`.
@@ -458,7 +472,7 @@ provider = VLLMProvider(
 - `frequency_penalty`: Optional[float]
 
 #### `UnifiedBatchMetadata`
-- `provider`: str - Provider name ("openai", "anthropic", "google", "vllm")
+- `provider`: str - Provider name ("openai", "anthropic", "google", "mistral", "vllm")
 - `requests`: list[UnifiedRequest] - List of requests
 - `metadata`: dict[str, Any] - Optional metadata
 
@@ -489,6 +503,7 @@ Set API keys via environment variables:
 export OPENAI_API_KEY="sk-..."
 export ANTHROPIC_API_KEY="sk-ant-..."
 export GOOGLE_API_KEY="..."
+export MISTRAL_API_KEY="..."
 ```
 
 Then initialize providers without explicit keys:
@@ -497,6 +512,7 @@ Then initialize providers without explicit keys:
 provider = OpenAIProvider()  # Uses OPENAI_API_KEY
 provider = AnthropicProvider()  # Uses ANTHROPIC_API_KEY
 provider = GoogleProvider()  # Uses GOOGLE_API_KEY
+provider = MistralProvider()  # Uses MISTRAL_API_KEY
 ```
 
 ## Error Handling

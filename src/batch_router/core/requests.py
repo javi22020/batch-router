@@ -80,7 +80,7 @@ class UnifiedBatchMetadata:
 
     def __post_init__(self):
         """Validate batch metadata."""
-        valid_providers = ["openai", "anthropic", "google", "vllm"]
+        valid_providers = ["openai", "anthropic", "google", "mistral", "vllm"]
         if self.provider not in valid_providers:
             raise ValueError(f"provider must be one of {valid_providers}")
 
