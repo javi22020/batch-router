@@ -2,7 +2,7 @@
 
 ## Overview
 
-A unified Python library for batch processing LLM requests across multiple providers (OpenAI, Anthropic, Google GenAI, vLLM). The library provides a single interface for sending batch requests, polling for completion, and retrieving results in a unified format.
+A unified Python library for batch processing LLM requests across multiple providers (OpenAI, Anthropic, Google GenAI, Mistral, vLLM). The library provides a single interface for sending batch requests, polling for completion, and retrieving results in a unified format.
 
 **Core Principle:** All providers save JSONL files (both provider-specific and unified formats) to `.batch_router/generated/<provider>/` for transparency and debugging.
 
@@ -28,6 +28,7 @@ batch_router/
 │   ├── openai_provider.py                    # OpenAI Batch API implementation
 │   ├── anthropic_provider.py                 # Anthropic Message Batches API
 │   ├── google_provider.py                    # Google GenAI Batch API
+│   ├── mistral_provider.py                   # Mistral Batch API
 │   └── vllm_provider.py                      # vLLM run-batch subprocess
 ├── router.py                        # BatchRouter orchestration
 ├── utils/                           # Shared utilities
@@ -50,6 +51,7 @@ python >= 3.11  # For native union types (X | Y)
 openai >= 1.0.0
 anthropic >= 0.40.0
 google-genai >= 1.0.0  # New unified SDK
+mistralai >= 1.0.0     # Mistral AI SDK
 
 # Async support
 aiofiles >= 23.0.0  # For async file operations
@@ -234,6 +236,7 @@ class UnifiedRequest:
     - OpenAI: Converts to message with role="system"
     - Anthropic: Uses 'system' parameter
     - Google: Uses 'systemInstruction' in config
+    - Mistral: Converts to message with role="system"
     """
     custom_id: str  # REQUIRED: User must provide unique ID
     model: str  # Provider-specific model ID (e.g., "gpt-4o", "claude-sonnet-4-5")
@@ -276,13 +279,13 @@ class UnifiedBatchMetadata:
     Batch metadata before sending to provider.
     This is NOT the response - just the input specification.
     """
-    provider: str  # "openai", "anthropic", "google", "vllm"
+    provider: str  # "openai", "anthropic", "google", "mistral", "vllm"
     requests: list[UnifiedRequest]
     metadata: dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self):
         """Validate batch metadata."""
-        valid_providers = ["openai", "anthropic", "google", "vllm"]
+        valid_providers = ["openai", "anthropic", "google", "mistral", "vllm"]
         if self.provider not in valid_providers:
             raise ValueError(f"provider must be one of {valid_providers}")
         
@@ -313,8 +316,9 @@ class BatchStatus(Enum):
     Provider mapping:
     - OpenAI: validating, in_progress, completed, failed, expired, cancelled
     - Anthropic: in_progress, ended (then check request_counts)
-    - Google: JOB_STATE_PENDING, JOB_STATE_RUNNING, JOB_STATE_SUCCEEDED, 
+    - Google: JOB_STATE_PENDING, JOB_STATE_RUNNING, JOB_STATE_SUCCEEDED,
               JOB_STATE_FAILED, JOB_STATE_CANCELLED
+    - Mistral: QUEUED, RUNNING, SUCCESS, FAILED, TIMEOUT_EXCEEDED, CANCELLATION_REQUESTED, CANCELLED
     - vLLM: File-based (processing if file not ready, completed when exists)
     """
     VALIDATING = "validating"
@@ -932,12 +936,14 @@ BATCH_DIR_PATH = ".batch_router/generated"
 PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_GOOGLE = "google"
+PROVIDER_MISTRAL = "mistral"
 PROVIDER_VLLM = "vllm"
 
 VALID_PROVIDERS = [
     PROVIDER_OPENAI,
     PROVIDER_ANTHROPIC,
     PROVIDER_GOOGLE,
+    PROVIDER_MISTRAL,
     PROVIDER_VLLM
 ]
 
@@ -952,6 +958,10 @@ BATCH_LIMITS = {
         "max_size_mb": 256
     },
     PROVIDER_GOOGLE: {
+        "max_requests": None,  # No documented limit
+        "max_size_mb": None
+    },
+    PROVIDER_MISTRAL: {
         "max_requests": None,  # No documented limit
         "max_size_mb": None
     },
@@ -1271,6 +1281,7 @@ from .core.enums import BatchStatus, ResultStatus
 from .providers.openai import OpenAIProvider
 from .providers.anthropic import AnthropicProvider
 from .providers.google import GoogleProvider
+from .providers.mistral import MistralProvider
 from .providers.vllm import VLLMProvider
 
 # Exceptions
@@ -1310,6 +1321,7 @@ __all__ = [
     "OpenAIProvider",
     "AnthropicProvider",
     "GoogleProvider",
+    "MistralProvider",
     "VLLMProvider",
     # Exceptions
     "BatchRouterError",
@@ -1386,7 +1398,7 @@ class <Provider>Provider(BaseProvider):
 
 Each provider handles system prompts differently:
 
-**OpenAI/vLLM:**
+**OpenAI/Mistral/vLLM:**
 ```python
 # Convert system_prompt to message with role="system"
 if request.system_prompt:
@@ -1504,16 +1516,21 @@ class MockProvider(BaseProvider):
 3. Verify format conversion
 
 ### Phase 4: Google Provider
-1. Implement `GoogleProvider`
-2. Handle Google GenAI SDK specifics
-3. Test file upload flow
+1. ✅ Implement `GoogleProvider`
+2. ✅ Handle Google GenAI SDK specifics
+3. ✅ Test file upload flow
 
-### Phase 5: vLLM Provider
-1. Implement `VLLMProvider`
-2. Handle subprocess execution
-3. Test with local model
+### Phase 5: Mistral Provider
+1. ✅ Implement `MistralProvider`
+2. ✅ Handle Mistral SDK specifics
+3. ✅ Test with real API
 
-### Phase 6: Documentation & Examples
+### Phase 6: vLLM Provider
+1. ✅ Implement `VLLMProvider`
+2. ✅ Handle subprocess execution
+3. ✅ Test with local model
+
+### Phase 7: Documentation & Examples
 1. README.md with usage examples
 2. API documentation
 3. Example scripts
