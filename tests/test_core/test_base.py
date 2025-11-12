@@ -6,10 +6,12 @@ from batch_router.core.base import BaseProvider
 from batch_router.core.requests import UnifiedRequest, UnifiedBatchMetadata
 from batch_router.core.responses import BatchStatusResponse, UnifiedResult
 from batch_router.core.messages import UnifiedMessage
+from batch_router.core.enums import Modality
 
 
 class MockProvider(BaseProvider):
     """Mock provider for testing BaseProvider."""
+    supported_modalities = {Modality.TEXT, Modality.IMAGE, Modality.AUDIO}
 
     def __init__(self, name: str = "mock", api_key: str = "test_key", **kwargs):
         super().__init__(name, api_key, **kwargs)
