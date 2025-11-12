@@ -8,7 +8,7 @@ A Python package designed to facilitate batch LLM requests efficiently across mu
 
 ## Overview
 
-Batch Router provides a standardized way to send batch requests to different LLM providers (OpenAI, Anthropic, Google, Mistral, and vLLM), abstracting away provider-specific formats and APIs. This allows you to:
+Batch Router provides a standardized way to send batch requests to different LLM providers, abstracting away provider-specific formats and APIs. The base package includes OpenAI and Anthropic providers, with optional support for Google, Mistral, and local processing via vLLM. This allows you to:
 
 - Write requests once in a unified format
 - Switch between providers seamlessly
@@ -19,7 +19,7 @@ Batch Router provides a standardized way to send batch requests to different LLM
 ## Features
 
 - **Unified Request Format**: Single format for all providers
-- **Multi-Provider Support**: OpenAI, Anthropic (Claude), Google (Gemini), Mistral, and vLLM (local)
+- **Multi-Provider Support**: OpenAI and Anthropic (Claude) included by default, with optional support for Google (Gemini) and Mistral
 - **Cost Reduction**: Leverage batch APIs for up to 50% cost savings (OpenAI)
 - **Async Support**: Fully asynchronous operations
 - **Type Safe**: Comprehensive type hints throughout
@@ -30,14 +30,13 @@ Batch Router provides a standardized way to send batch requests to different LLM
 ## Installation
 
 ```bash
-# Basic installation
+# Basic installation (includes OpenAI and Anthropic providers)
 pip install batch-router
 
-# With specific provider dependencies
-pip install batch-router[anthropic]
-pip install batch-router[openai]
-pip install batch-router[google]
-pip install batch-router[mistral]
+# With optional provider dependencies
+pip install batch-router[google]    # For Google Gemini support
+pip install batch-router[mistral]   # For Mistral support
+pip install batch-router[all]       # Install all optional providers
 
 # For local processing with vLLM
 pip install vllm
@@ -111,7 +110,11 @@ asyncio.run(main())
 
 ## Supported Providers
 
-### OpenAI
+### Included Providers
+
+The following providers are included in the base installation:
+
+#### OpenAI
 - **API**: Batch API for Chat Completions
 - **Cost**: 50% reduction compared to sync API
 - **Completion**: 24-hour window
@@ -123,7 +126,7 @@ from batch_router import OpenAIProvider
 provider = OpenAIProvider(api_key="sk-...")
 ```
 
-### Anthropic (Claude)
+#### Anthropic (Claude)
 - **API**: Message Batches API
 - **Cost**: 50% reduction compared to sync API
 - **Completion**: 24-hour window
@@ -135,7 +138,13 @@ from batch_router import AnthropicProvider
 provider = AnthropicProvider(api_key="sk-ant-...")
 ```
 
-### Google (Gemini)
+### Optional Providers
+
+The following providers require additional installation:
+
+#### Google (Gemini)
+
+Requires: `pip install batch-router[google]`
 - **API**: Batch Prediction API
 - **Cost**: Varies by model
 - **Completion**: Varies
@@ -147,7 +156,9 @@ from batch_router import GoogleProvider
 provider = GoogleProvider(api_key="...")
 ```
 
-### Mistral
+#### Mistral
+
+Requires: `pip install batch-router[mistral]`
 - **API**: Batch Inference API
 - **Cost**: Reduced pricing for batch operations
 - **Completion**: Varies by batch size
@@ -159,7 +170,11 @@ from batch_router import MistralProvider
 provider = MistralProvider(api_key="...")
 ```
 
-### vLLM (Local)
+### Local Provider
+
+#### vLLM (Local)
+
+Requires separate installation: `pip install vllm`
 - **API**: Local batch processing via vLLM CLI
 - **Cost**: Free (runs locally)
 - **Completion**: Immediate (based on hardware)
