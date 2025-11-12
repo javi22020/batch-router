@@ -31,7 +31,7 @@ batch_router/
 │   ├── mistral_provider.py                   # Mistral Batch API
 │   └── vllm_provider.py                      # vLLM run-batch subprocess
 ├── router.py                        # BatchRouter orchestration
-├── utils/                           # Shared utilities
+├── utilities/                           # Shared utilities
 │   ├── __init__.py
 │   ├── file_manager.py              # JSONL file operations
 │   ├── logging.py                   # Structured logging
