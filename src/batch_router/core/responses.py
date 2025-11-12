@@ -77,7 +77,7 @@ class UnifiedResult:
     # Provider-specific raw data (for debugging)
     provider_data: dict[str, Any] = field(default_factory=dict)
 
-    def get_text_response(self) -> Optional[str]:
+    def get_text_response(self) -> str | None:
         """
         Extract text response from successful result.
         Handles different provider response formats.

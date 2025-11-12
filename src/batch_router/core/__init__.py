@@ -2,8 +2,8 @@
 
 from .base import BaseProvider
 from .config import GenerationConfig
-from .content import TextContent, ImageContent, DocumentContent
-from .enums import BatchStatus, ResultStatus
+from .content import TextContent, ImageContent, DocumentContent, AudioContent
+from .enums import BatchStatus, ResultStatus, Modality
 from .messages import UnifiedMessage
 from .requests import UnifiedRequest, UnifiedBatchMetadata
 from .responses import BatchStatusResponse, UnifiedResult, RequestCounts
@@ -18,9 +18,11 @@ __all__ = [
     "TextContent",
     "ImageContent",
     "DocumentContent",
+    "AudioContent",
     # Enums
     "BatchStatus",
     "ResultStatus",
+    "Modality",
     # Messages
     "UnifiedMessage",
     # Requests

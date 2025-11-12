@@ -3,6 +3,14 @@
 from enum import Enum
 
 
+class Modality(str, Enum):
+    """Content modalities supported by the library."""
+    TEXT = "text"
+    IMAGE = "image"
+    DOCUMENT = "document"
+    AUDIO = "audio"
+
+
 class BatchStatus(Enum):
     """
     Unified batch status across all providers.

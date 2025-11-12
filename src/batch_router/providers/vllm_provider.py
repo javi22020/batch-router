@@ -4,7 +4,6 @@ import json
 import os
 import asyncio
 import subprocess
-import shutil
 from datetime import datetime
 from typing import Optional, Any, AsyncIterator
 from pathlib import Path
@@ -16,9 +15,10 @@ except ImportError:
 
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
+from ..core.messages import UnifiedMessage
 from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
-from ..core.enums import BatchStatus, ResultStatus
-from ..core.content import TextContent, ImageContent, DocumentContent
+from ..core.enums import BatchStatus, ResultStatus, Modality
+from ..core.content import TextContent, ImageContent, DocumentContent, AudioContent
 
 
 class VLLMProvider(BaseProvider):
@@ -30,7 +30,7 @@ class VLLMProvider(BaseProvider):
 
     Supports:
     - Chat Completions API via local batch processing
-    - Text and multimodal content (depending on model support)
+    - Text and multimodal content (images, audio - depending on model support)
     - System prompt conversion to system message (OpenAI-compatible)
     - Local execution (no API costs)
     - Synchronous batch processing
@@ -46,7 +46,11 @@ class VLLMProvider(BaseProvider):
         - Requires vLLM to be installed and available in PATH
         - Batch processing runs synchronously in background
         - Models must be available locally or downloadable
+        - Audio support depends on the model being used
     """
+    
+    # Declare supported modalities (model-dependent, but framework supports it)
+    supported_modalities = {Modality.TEXT, Modality.IMAGE, Modality.AUDIO}
 
     def __init__(
         self,
@@ -136,7 +140,7 @@ class VLLMProvider(BaseProvider):
         requests: list[UnifiedRequest]
     ) -> list[dict[str, Any]]:
         """
-        Convert unified requests to vLLM (OpenAI-compatible) format.
+        Convert unified requests to vLLM (OpenAI-compatible) format (updated for audio).
 
         vLLM uses the same batch file format as OpenAI:
         {
@@ -146,6 +150,7 @@ class VLLMProvider(BaseProvider):
             "body": {
                 "model": "model-name",
                 "messages": [...],
+                "modalities": ["text", "audio"],  # Added when audio is present
                 "max_completion_tokens": 1000,
                 ...
             }
@@ -158,6 +163,13 @@ class VLLMProvider(BaseProvider):
         provider_requests = []
 
         for request in requests:
+            # Check if request contains audio
+            has_audio = any(
+                isinstance(content, AudioContent)
+                for message in request.messages
+                for content in message.content
+            )
+            
             # Convert messages
             messages = []
 
@@ -183,9 +195,12 @@ class VLLMProvider(BaseProvider):
                 "model": request.model,
                 "messages": messages
             }
+            
+            # Add modalities if audio is present
+            if has_audio:
+                body["modalities"] = ["text", "audio"]
 
             # Add generation config parameters
-            # vLLM uses max_completion_tokens (newer OpenAI format) or max_tokens
             if request.generation_config:
                 config = request.generation_config
 
@@ -199,7 +214,6 @@ class VLLMProvider(BaseProvider):
                     body["top_k"] = config.top_k
                 if config.stop_sequences is not None:
                     body["stop"] = config.stop_sequences
-                # Note: vLLM doesn't support presence_penalty or frequency_penalty
 
             # Add provider-specific kwargs
             body.update(request.provider_kwargs)
@@ -216,8 +230,8 @@ class VLLMProvider(BaseProvider):
 
         return provider_requests
 
-    def _convert_message_to_vllm(self, message) -> dict[str, Any]:
-        """Convert unified message to vLLM (OpenAI-compatible) format."""
+    def _convert_message_to_vllm(self, message: UnifiedMessage) -> dict[str, Any]:
+        """Convert unified message to vLLM (OpenAI-compatible) format (updated for audio)."""
         # Handle text-only messages (most common case)
         if len(message.content) == 1 and isinstance(message.content[0], TextContent):
             return {
@@ -236,6 +250,9 @@ class VLLMProvider(BaseProvider):
             elif isinstance(content_item, ImageContent):
                 image_part = self._convert_image_to_vllm(content_item)
                 content_parts.append(image_part)
+            elif isinstance(content_item, AudioContent):
+                audio_part = self._convert_audio_to_vllm(content_item)
+                content_parts.append(audio_part)
             elif isinstance(content_item, DocumentContent):
                 # vLLM/OpenAI doesn't support documents in chat completions
                 # Skip for now
@@ -272,6 +289,52 @@ class VLLMProvider(BaseProvider):
                     "url": image.data
                 }
             }
+    
+    def _convert_audio_to_vllm(self, audio: AudioContent) -> dict[str, Any]:
+        """
+        Convert unified audio content to vLLM format.
+        
+        vLLM uses OpenAI-compatible format with audio support.
+        The format is identical to OpenAI's audio input format.
+        
+        Format:
+        {
+            "type": "input_audio",
+            "input_audio": {
+                "data": "<base64_string>",
+                "format": "wav"  # or "mp3"
+            }
+        }
+        
+        Note: Like OpenAI, vLLM uses simple format names ("wav", "mp3"),
+        not full MIME types.
+        """
+        if audio.source_type != "base64":
+            raise ValueError(
+                "vLLM only supports base64-encoded audio in batch processing. "
+                f"Got source_type={audio.source_type}. "
+                "Convert URL or file_uri audio to base64 first."
+            )
+        
+        # Extract and normalize format from media_type
+        if audio.media_type in ("audio/wav", "audio/wave"):
+            audio_format = "wav"
+        elif audio.media_type in ("audio/mp3", "audio/mpeg"):
+            audio_format = "mp3"
+        else:
+            # Should never happen due to AudioContent validation
+            raise ValueError(
+                f"Unsupported audio format for vLLM: {audio.media_type}. "
+                "Only WAV and MP3 are supported."
+            )
+        
+        return {
+            "type": "input_audio",
+            "input_audio": {
+                "data": audio.data,
+                "format": audio_format
+            }
+        }
 
     def _convert_from_provider_format(
         self,
@@ -350,19 +413,23 @@ class VLLMProvider(BaseProvider):
         batch: UnifiedBatchMetadata
     ) -> str:
         """
-        Send batch to vLLM for local processing.
+        Send batch to vLLM for local processing with audio support.
 
         Steps:
-        1. Convert requests to vLLM (OpenAI-compatible) format
-        2. Generate batch ID
-        3. Save unified format JSONL
-        4. Save provider format JSONL (input file)
-        5. Start vLLM batch process in background
-        6. Return batch ID
+        1. Validate modalities
+        2. Convert requests to vLLM (OpenAI-compatible) format
+        3. Generate batch ID
+        4. Save unified format JSONL
+        5. Save provider format JSONL (input file)
+        6. Start vLLM batch process in background
+        7. Return batch ID
 
         Note: Unlike cloud providers, vLLM runs synchronously in a subprocess.
         The batch processing happens in the background.
         """
+        # Validate modalities FIRST
+        self.validate_request_modalities(batch.requests)
+        
         # Generate batch ID
         batch_id = self._generate_batch_id()
 

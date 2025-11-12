@@ -17,7 +17,7 @@ except ImportError:
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
 from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
-from ..core.enums import BatchStatus, ResultStatus
+from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent
 
 
@@ -30,7 +30,12 @@ class MistralProvider(BaseProvider):
     - Handles system prompts as messages with role="system"
     - Manages batch lifecycle (create, monitor, retrieve results)
     - Saves JSONL files for transparency
+    
+    Note: Mistral batch API currently does not support audio.
     """
+    
+    # Mistral batch API does not support audio currently
+    supported_modalities = {Modality.TEXT, Modality.IMAGE}
 
     def __init__(self, api_key: Optional[str] = None, **kwargs):
         """
@@ -257,11 +262,12 @@ class MistralProvider(BaseProvider):
         Send batch to Mistral Batch API.
 
         Steps:
-        1. Convert requests to Mistral format
-        2. Save unified and provider JSONL files
-        3. Upload JSONL file to Mistral
-        4. Create batch job via API
-        5. Return batch job ID
+        1. Validate modalities (will raise error if audio is present)
+        2. Convert requests to Mistral format
+        3. Save unified and provider JSONL files
+        4. Upload JSONL file to Mistral
+        5. Create batch job via API
+        6. Return batch job ID
 
         Args:
             batch: Batch metadata with unified requests
@@ -270,9 +276,13 @@ class MistralProvider(BaseProvider):
             batch_id: Mistral batch job ID
 
         Raises:
+            UnsupportedModalityError: If audio content is present
             ValueError: If requests are invalid
             Exception: If API call fails
         """
+        # Validate modalities FIRST (will raise error if audio is present)
+        self.validate_request_modalities(batch.requests)
+        
         # Convert to Mistral format
         mistral_requests = self._convert_to_provider_format(batch.requests)
 

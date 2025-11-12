@@ -10,7 +10,7 @@ import aiofiles
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
 from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
-from ..core.enums import BatchStatus, ResultStatus
+from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent
 
 
@@ -23,7 +23,12 @@ class AnthropicProvider(BaseProvider):
     - Handles system prompts as separate 'system' field
     - Manages batch lifecycle (create, monitor, retrieve results)
     - Saves JSONL files for transparency
+    
+    Note: Anthropic batch API does NOT support audio currently.
     """
+    
+    # Anthropic batch API does NOT support audio
+    supported_modalities = {Modality.TEXT, Modality.IMAGE}
 
     def __init__(self, api_key: Optional[str] = None, **kwargs):
         """
@@ -256,10 +261,11 @@ class AnthropicProvider(BaseProvider):
         Send batch to Anthropic Message Batches API.
 
         Steps:
-        1. Convert requests to Anthropic format
-        2. Save unified and provider JSONL files
-        3. Create batch via API
-        4. Return batch ID
+        1. Validate modalities (will raise error if audio is present)
+        2. Convert requests to Anthropic format
+        3. Save unified and provider JSONL files
+        4. Create batch via API
+        5. Return batch ID
 
         Args:
             batch: Batch metadata with unified requests
@@ -268,9 +274,13 @@ class AnthropicProvider(BaseProvider):
             batch_id: Anthropic batch ID (e.g., "msgbatch_...")
 
         Raises:
+            UnsupportedModalityError: If audio content is present
             ValueError: If requests are invalid
             Exception: If API call fails
         """
+        # Validate modalities FIRST (will raise error if audio is present)
+        self.validate_request_modalities(batch.requests)
+        
         # Convert to Anthropic format
         anthropic_requests = self._convert_to_provider_format(batch.requests)
 

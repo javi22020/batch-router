@@ -6,6 +6,9 @@ from pathlib import Path
 import json
 from .requests import UnifiedRequest, UnifiedBatchMetadata
 from .responses import BatchStatusResponse, UnifiedResult
+from .enums import Modality
+from .content import TextContent, ImageContent, DocumentContent, AudioContent
+from ..exceptions import UnsupportedModalityError
 
 
 class BaseProvider(ABC):
@@ -27,6 +30,9 @@ class BaseProvider(ABC):
       - _output.jsonl: Raw provider output
       - _results.jsonl: Converted to unified format
     """
+    
+    # Class attribute - must be overridden by each provider
+    supported_modalities: set[Modality] = set()
 
     def __init__(self, name: str, api_key: Optional[str] = None, **kwargs):
         """
@@ -40,6 +46,13 @@ class BaseProvider(ABC):
         self.name = name
         self.api_key = api_key
         self.config = kwargs
+        
+        # Validate that subclass defined supported_modalities
+        if not self.supported_modalities:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} must define supported_modalities"
+            )
+        
         self._validate_configuration()
 
     @abstractmethod
@@ -50,6 +63,42 @@ class BaseProvider(ABC):
         Raise ValueError if configuration is invalid.
         """
         pass
+    
+    def validate_request_modalities(
+        self,
+        requests: list[UnifiedRequest]
+    ) -> None:
+        """
+        Validate that all content modalities in requests are supported.
+        
+        Args:
+            requests: List of unified requests to validate
+            
+        Raises:
+            UnsupportedModalityError: If any request contains unsupported modality
+        """
+        for req in requests:
+            for message in req.messages:
+                for content in message.content:
+                    # Get modality from content
+                    if isinstance(content, TextContent):
+                        modality = Modality.TEXT
+                    elif isinstance(content, ImageContent):
+                        modality = Modality.IMAGE
+                    elif isinstance(content, DocumentContent):
+                        modality = Modality.DOCUMENT
+                    elif isinstance(content, AudioContent):
+                        modality = Modality.AUDIO
+                    else:
+                        raise ValueError(f"Unknown content type: {type(content)}")
+                    
+                    # Check if supported
+                    if modality not in self.supported_modalities:
+                        raise UnsupportedModalityError(
+                            f"Provider '{self.name}' does not support {modality.value} "
+                            f"content in batch API. Supported modalities: "
+                            f"{', '.join(m.value for m in self.supported_modalities)}"
+                        )
 
     # ========================================================================
     # FORMAT CONVERSION (must be implemented by each provider)

@@ -16,8 +16,8 @@ from openai import AsyncOpenAI, OpenAI
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
 from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
-from ..core.enums import BatchStatus, ResultStatus
-from ..core.content import TextContent, ImageContent, DocumentContent
+from ..core.enums import BatchStatus, ResultStatus, Modality
+from ..core.content import TextContent, ImageContent, DocumentContent, AudioContent
 
 
 class OpenAIProvider(BaseProvider):
@@ -26,7 +26,7 @@ class OpenAIProvider(BaseProvider):
 
     Supports:
     - Chat Completions API via batch processing
-    - Text and multimodal content (images via URL or base64)
+    - Text and multimodal content (images, audio via base64)
     - System prompt conversion to system message
     - 50% cost reduction compared to synchronous API
     - 24-hour completion window
@@ -38,6 +38,9 @@ class OpenAIProvider(BaseProvider):
         async for result in provider.get_results(batch_id):
             print(result.custom_id, result.status)
     """
+    
+    # Declare supported modalities
+    supported_modalities = {Modality.TEXT, Modality.IMAGE, Modality.AUDIO}
 
     def __init__(
         self,
@@ -81,7 +84,7 @@ class OpenAIProvider(BaseProvider):
         requests: list[UnifiedRequest]
     ) -> list[dict[str, Any]]:
         """
-        Convert unified requests to OpenAI Batch API format.
+        Convert unified requests to OpenAI Batch API format (updated for audio).
 
         OpenAI Batch format:
         {
@@ -91,6 +94,7 @@ class OpenAIProvider(BaseProvider):
             "body": {
                 "model": "gpt-4o",
                 "messages": [...],
+                "modalities": ["text", "audio"],  # Added when audio is present
                 "max_tokens": 1000,
                 ...
             }
@@ -103,6 +107,13 @@ class OpenAIProvider(BaseProvider):
         provider_requests = []
 
         for request in requests:
+            # Check if request contains audio
+            has_audio = any(
+                isinstance(content, AudioContent)
+                for message in request.messages
+                for content in message.content
+            )
+            
             # Convert messages
             messages = []
 
@@ -128,6 +139,10 @@ class OpenAIProvider(BaseProvider):
                 "model": request.model,
                 "messages": messages
             }
+            
+            # Add modalities if audio is present
+            if has_audio:
+                body["modalities"] = ["text", "audio"]
 
             # Add generation config parameters
             if request.generation_config:
@@ -162,7 +177,7 @@ class OpenAIProvider(BaseProvider):
         return provider_requests
 
     def _convert_message_to_openai(self, message) -> dict[str, Any]:
-        """Convert unified message to OpenAI message format."""
+        """Convert unified message to OpenAI message format (updated for audio)."""
         # Handle text-only messages (most common case)
         if len(message.content) == 1 and isinstance(message.content[0], TextContent):
             return {
@@ -181,6 +196,9 @@ class OpenAIProvider(BaseProvider):
             elif isinstance(content_item, ImageContent):
                 image_part = self._convert_image_to_openai(content_item)
                 content_parts.append(image_part)
+            elif isinstance(content_item, AudioContent):
+                audio_part = self._convert_audio_to_openai(content_item)
+                content_parts.append(audio_part)
             elif isinstance(content_item, DocumentContent):
                 # OpenAI doesn't support documents in chat completions
                 # Skip or raise error
@@ -217,6 +235,56 @@ class OpenAIProvider(BaseProvider):
                     "url": image.data
                 }
             }
+    
+    def _convert_audio_to_openai(self, audio: AudioContent) -> dict[str, Any]:
+        """
+        Convert unified audio content to OpenAI format.
+        
+        OpenAI expects audio in the following format:
+        {
+            "type": "input_audio",
+            "input_audio": {
+                "data": "<base64_string>",
+                "format": "wav"  # or "mp3"
+            }
+        }
+        
+        The request must also include:
+        {
+            "modalities": ["text", "audio"],
+            ...
+        }
+        
+        Note: OpenAI uses "format" field with simple extension names,
+        not full MIME types.
+        """
+        if audio.source_type != "base64":
+            raise ValueError(
+                "OpenAI batch API only supports base64-encoded audio. "
+                f"Got source_type={audio.source_type}. "
+                "Convert URL or file_uri audio to base64 first."
+            )
+        
+        # Extract format from media_type and normalize
+        # "audio/wav" -> "wav", "audio/mp3" -> "mp3", "audio/mpeg" -> "mp3"
+        if audio.media_type in ("audio/wav", "audio/wave"):
+            audio_format = "wav"
+        elif audio.media_type in ("audio/mp3", "audio/mpeg"):
+            audio_format = "mp3"
+        else:
+            # Should never happen due to AudioContent validation, but be defensive
+            raise ValueError(
+                f"Unsupported audio format for OpenAI: {audio.media_type}. "
+                "Only WAV and MP3 are supported."
+            )
+        
+        return {
+            "type": "input_audio",
+            "input_audio": {
+                "data": audio.data,
+                "format": audio_format
+            }
+        }
 
     def _convert_from_provider_format(
         self,
@@ -295,16 +363,20 @@ class OpenAIProvider(BaseProvider):
         batch: UnifiedBatchMetadata
     ) -> str:
         """
-        Send batch to OpenAI.
+        Send batch to OpenAI with audio support.
 
         Steps:
-        1. Convert requests to OpenAI format
-        2. Save unified format JSONL
-        3. Save provider format JSONL
-        4. Upload file to OpenAI
-        5. Create batch job
-        6. Return batch ID
+        1. Validate modalities
+        2. Convert requests to OpenAI format
+        3. Save unified format JSONL
+        4. Save provider format JSONL
+        5. Upload file to OpenAI
+        6. Create batch job
+        7. Return batch ID
         """
+        # Validate modalities FIRST
+        self.validate_request_modalities(batch.requests)
+        
         # Convert to provider format
         provider_requests = self._convert_to_provider_format(batch.requests)
 

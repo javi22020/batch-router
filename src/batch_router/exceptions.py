@@ -18,6 +18,17 @@ class ValidationError(BatchRouterError):
     pass
 
 
+class UnsupportedModalityError(BatchRouterError):
+    """
+    Raised when a provider doesn't support a requested content modality.
+    
+    Example:
+        Trying to send audio content to Anthropic's batch API which
+        currently only supports text and images.
+    """
+    pass
+
+
 class BatchTimeoutError(BatchRouterError):
     """Raised when batch doesn't complete within timeout."""
     pass

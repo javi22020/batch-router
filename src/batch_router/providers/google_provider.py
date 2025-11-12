@@ -18,8 +18,8 @@ except ImportError:
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
 from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
-from ..core.enums import BatchStatus, ResultStatus
-from ..core.content import TextContent, ImageContent, DocumentContent
+from ..core.enums import BatchStatus, ResultStatus, Modality
+from ..core.content import TextContent, ImageContent, DocumentContent, AudioContent
 from ..exceptions import (
     ProviderError,
     BatchNotFoundError,
@@ -33,8 +33,16 @@ class GoogleProvider(BaseProvider):
     Google GenAI Batch API provider.
 
     Uses the google-genai SDK to process batch requests through Google's
-    Gemini batch processing API.
+    Gemini batch processing API. Supports text, images, documents, and audio.
     """
+    
+    # Declare supported modalities
+    supported_modalities = {
+        Modality.TEXT,
+        Modality.IMAGE,
+        Modality.DOCUMENT,
+        Modality.AUDIO
+    }
 
     def __init__(self, api_key: Optional[str] = None, **kwargs):
         """
@@ -69,10 +77,10 @@ class GoogleProvider(BaseProvider):
 
     def _convert_content_to_google_format(
         self,
-        content_item: TextContent | ImageContent | DocumentContent
+        content_item: TextContent | ImageContent | DocumentContent | AudioContent
     ) -> dict[str, Any]:
         """
-        Convert a single content item to Google format.
+        Convert a single content item to Google format (updated for audio).
 
         Args:
             content_item: Unified content object
@@ -126,6 +134,50 @@ class GoogleProvider(BaseProvider):
                 raise ValueError(
                     "URL source type for documents is not directly supported by Google. "
                     "Convert to base64 or upload to Google Cloud Storage."
+                )
+        
+        elif isinstance(content_item, AudioContent):
+            # Google supports two approaches for audio:
+            # 1. Inline data (base64): For audio < 20MB total request size
+            # 2. File URI (file_uri): For larger files or reused audio via Files API
+            
+            # Validate media_type - Google is strict about MIME types
+            valid_google_mimes = {
+                "audio/wav", "audio/wave",
+                "audio/mp3", "audio/mpeg"
+            }
+            if content_item.media_type not in valid_google_mimes:
+                raise ValueError(
+                    f"Invalid audio MIME type for Google: {content_item.media_type}. "
+                    f"Supported types: {', '.join(sorted(valid_google_mimes))}"
+                )
+            
+            if content_item.source_type == "base64":
+                # Inline data approach
+                return {
+                    "inline_data": {
+                        "mime_type": content_item.media_type,
+                        "data": content_item.data
+                    }
+                }
+            elif content_item.source_type == "file_uri":
+                # File URI approach (for Files API uploaded files)
+                if not content_item.data.startswith("gs://"):
+                    raise ValueError(
+                        "Google file_uri must use gs:// URI format from Files API. "
+                        f"Got: {content_item.data[:50]}..."
+                    )
+                return {
+                    "file_data": {
+                        "mime_type": content_item.media_type,
+                        "file_uri": content_item.data
+                    }
+                }
+            elif content_item.source_type == "url":
+                # Google doesn't support direct URLs for audio
+                raise ValueError(
+                    "Google Gemini batch API does not support URL source_type for audio. "
+                    "Use base64 for inline data or file_uri for uploaded files via Files API."
                 )
 
         raise ValueError(f"Unsupported content type: {type(content_item)}")
@@ -287,15 +339,16 @@ class GoogleProvider(BaseProvider):
         batch: UnifiedBatchMetadata
     ) -> str:
         """
-        Send batch to Google GenAI Batch API.
+        Send batch to Google GenAI Batch API with audio support.
 
         Implementation steps:
-        1. Convert requests to Google format
-        2. Save unified format JSONL
-        3. Save provider format JSONL
-        4. Upload JSONL file using File API
-        5. Create batch job
-        6. Return batch_id (job name)
+        1. Validate modalities
+        2. Convert requests to Google format
+        3. Save unified format JSONL
+        4. Save provider format JSONL
+        5. Upload JSONL file using File API
+        6. Create batch job
+        7. Return batch_id (job name)
 
         Args:
             batch: Batch metadata with unified requests
@@ -304,8 +357,12 @@ class GoogleProvider(BaseProvider):
             batch_id: Google batch job name (e.g., "batches/xyz123")
 
         Raises:
+            UnsupportedModalityError: If unsupported content modality is present
             ProviderError: If batch creation fails
         """
+        # Validate modalities FIRST
+        self.validate_request_modalities(batch.requests)
+        
         try:
             # Generate a simple batch ID for file tracking
             # We'll use timestamp-based ID
