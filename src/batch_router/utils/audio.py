@@ -111,28 +111,6 @@ def decode_audio_content(audio: AudioContent) -> bytes:
     
     return base64.b64decode(audio.data)
 
-
-def estimate_audio_file_size(audio: AudioContent) -> int | None:
-    """
-    Estimate the size of audio file in bytes.
-    
-    For base64 data, calculates actual size.
-    For URLs/URIs, returns None.
-    
-    Args:
-        audio: AudioContent to estimate
-        
-    Returns:
-        Size in bytes, or None if cannot determine
-    """
-    if audio.source_type == "base64":
-        # Base64 encoding increases size by ~33%
-        # So original size = len(base64) * 3/4
-        return len(audio.data) * 3 // 4
-    
-    return None
-
-
 def validate_audio_format(file_path: str | Path) -> bool:
     """
     Validate that an audio file has a supported format.

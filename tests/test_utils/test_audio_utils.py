@@ -6,7 +6,6 @@ from pathlib import Path
 from batch_router.utils.audio import (
     encode_audio_file,
     decode_audio_content,
-    estimate_audio_file_size,
     validate_audio_format,
     _get_media_type_from_extension,
 )
@@ -157,46 +156,6 @@ def test_decode_audio_content_file_uri_source_fails():
     
     with pytest.raises(ValueError, match="Can only decode base64 audio"):
         decode_audio_content(audio)
-
-
-def test_estimate_audio_file_size_base64():
-    """Test estimating audio file size from base64 data."""
-    # Create 1000 bytes of data
-    original_data = b"x" * 1000
-    base64_data = base64.b64encode(original_data).decode("utf-8")
-    
-    audio = AudioContent(
-        source_type="base64",
-        media_type="audio/wav",
-        data=base64_data
-    )
-    
-    estimated_size = estimate_audio_file_size(audio)
-    # Should be close to original size (within 1 byte due to integer division)
-    assert abs(estimated_size - 1000) <= 1
-
-
-def test_estimate_audio_file_size_url():
-    """Test that URL source returns None for size estimation."""
-    audio = AudioContent(
-        source_type="url",
-        media_type="audio/mp3",
-        data="https://example.com/audio.mp3"
-    )
-    
-    assert estimate_audio_file_size(audio) is None
-
-
-def test_estimate_audio_file_size_file_uri():
-    """Test that file_uri source returns None for size estimation."""
-    audio = AudioContent(
-        source_type="file_uri",
-        media_type="audio/wav",
-        data="gs://bucket/audio.wav"
-    )
-    
-    assert estimate_audio_file_size(audio) is None
-
 
 def test_validate_audio_format_wav():
     """Test validating WAV format."""
