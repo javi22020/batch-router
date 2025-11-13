@@ -28,7 +28,7 @@ class RunningTask(BaseModel):
     created_at: datetime = datetime.now()
     completed_at: datetime | None = None
 
-class vLLMAIProvider(BaseProvider):
+class vLLMProvider(BaseProvider):
     """
     vLLM Batch API provider implementation.
 
