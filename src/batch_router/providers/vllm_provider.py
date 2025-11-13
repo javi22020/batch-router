@@ -27,12 +27,6 @@ class RunningTask(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     completed_at: datetime | None = Field(default=None)
     task: asyncio.Task = Field(default=None, exclude=True)
-    
-    @field_serializer("task", when_used="always", return_type=dict)
-    def serialize_task(self) -> dict:
-        return {
-            "task_name": self.task.get_name()
-        }
 
 
 class vLLMProvider(BaseProvider):
