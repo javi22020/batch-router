@@ -134,6 +134,9 @@ class vLLMProvider(BaseProvider):
         """Generate unique batch ID."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         return f"vllm_{timestamp}"
+    
+    def _get_current_model_id(self) -> str:
+        return "" # TODO: Use OpenAI Python SDK to get the current model id
 
     def _convert_to_provider_format(
         self,
@@ -665,8 +668,8 @@ class vLLMProvider(BaseProvider):
         # Read output file
         provider_results = await self._read_jsonl(str(output_file))
 
-        # Load batch metadata for consistent file naming
-        custom_name, model = self._load_batch_metadata(batch_id)
+        self._load_batch_metadata()
+        batch_info = self.processes[batch_id]
 
         # Convert to unified format
         unified_results = self._convert_from_provider_format(provider_results)
