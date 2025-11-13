@@ -33,3 +33,18 @@ class UnifiedMessage(BaseModel):
             role=role,
             content=[TextContent(text=text)]
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Serialize message to dictionary.
+        
+        Returns:
+            Dictionary representation of the message
+        """
+        result = {
+            "role": self.role,
+            "content": [content.model_dump() for content in self.content]
+        }
+        if self.provider_kwargs:
+            result["provider_kwargs"] = self.provider_kwargs
+        return result
