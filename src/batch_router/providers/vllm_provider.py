@@ -69,7 +69,8 @@ class vLLMProvider(BaseProvider):
         pass # No validation needed
 
     def _generate_batch_id(self) -> str:
-        return f"vllm_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # Include microseconds to ensure uniqueness even for rapid batch creation
+        return f"vllm_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
 
     def _convert_to_provider_format(
         self,
@@ -137,21 +138,22 @@ class vLLMProvider(BaseProvider):
                 body["modalities"] = ["text", "audio"]
 
             # Add generation config parameters
+            # vLLM supports: max_completion_tokens (or max_tokens), temperature, top_p, top_k
             if request.generation_config:
                 config = request.generation_config
 
+                # vLLM uses max_completion_tokens (newer OpenAI-compatible format)
                 if config.max_tokens is not None:
-                    body["max_tokens"] = config.max_tokens
+                    body["max_completion_tokens"] = config.max_tokens
                 if config.temperature is not None:
                     body["temperature"] = config.temperature
                 if config.top_p is not None:
                     body["top_p"] = config.top_p
-                if config.presence_penalty is not None:
-                    body["presence_penalty"] = config.presence_penalty
-                if config.frequency_penalty is not None:
-                    body["frequency_penalty"] = config.frequency_penalty
+                if config.top_k is not None:
+                    body["top_k"] = config.top_k
                 if config.stop_sequences is not None:
                     body["stop"] = config.stop_sequences
+                # Note: vLLM doesn't support presence_penalty or frequency_penalty
 
             # Add provider-specific kwargs
             body.update(request.provider_kwargs)
@@ -430,6 +432,17 @@ class vLLMProvider(BaseProvider):
         """
         self.validate_request_modalities(batch.requests)
 
+        # vLLM requires all requests to use the same model
+        if not batch.requests:
+            raise ValueError("Batch must contain at least one request")
+        
+        model = batch.requests[0].model
+        if not all(req.model == model for req in batch.requests):
+            raise ValueError(
+                "vLLM batch processing requires all requests to use the same model. "
+                f"Found multiple models: {set(req.model for req in batch.requests)}"
+            )
+
         batch_id = self._generate_batch_id()
         
         # Convert to provider format
@@ -437,7 +450,6 @@ class vLLMProvider(BaseProvider):
 
         # Extract custom naming parameters
         custom_name = batch.name
-        model = batch.requests[0].model
 
         # Save metadata for later use in get_results
         self._save_batch_metadata(batch_id, custom_name, model)
