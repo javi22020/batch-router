@@ -266,13 +266,17 @@ class BaseProvider(ABC):
         """
         batch_id = await self.send_batch(batch=batch)
         status = await self.get_status(batch_id=batch_id)
+
         while not status.is_complete():
             await asyncio.sleep(poll_rate)
             status = await self.get_status(batch_id=batch_id)
+        
         results_iterator = await self.get_results(batch_id=batch_id)
+
         results: list[UnifiedResult] = []
         async for result in results_iterator:
             results.append(result)
+        
         return results
 
     async def list_batches(
