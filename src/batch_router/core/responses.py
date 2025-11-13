@@ -70,4 +70,51 @@ class UnifiedResult(BaseModel):
     """
     custom_id: str
     status: ResultStatus
-    messages: list[UnifiedMessage]
+    response: Optional[dict[str, Any]] = None
+    error: Optional[dict[str, Any]] = None
+    provider_data: dict[str, Any] = {}
+
+    def get_text_response(self) -> Optional[str]:
+        """
+        Extract text response from provider-specific response format.
+        
+        Supports multiple provider formats:
+        - OpenAI: response["choices"][0]["message"]["content"]
+        - Anthropic: response["content"][0]["text"]
+        - Google: response["candidates"][0]["content"]["parts"][0]["text"]
+        - Direct: response["text"]
+        
+        Returns:
+            Text response if available, None otherwise
+        """
+        if self.status != ResultStatus.SUCCEEDED or not self.response:
+            return None
+        
+        # Try OpenAI format
+        if "choices" in self.response:
+            try:
+                return self.response["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                pass
+        
+        # Try Anthropic format
+        if "content" in self.response:
+            try:
+                content = self.response["content"]
+                if isinstance(content, list) and len(content) > 0:
+                    return content[0].get("text")
+            except (KeyError, IndexError, TypeError):
+                pass
+        
+        # Try Google format
+        if "candidates" in self.response:
+            try:
+                return self.response["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError, TypeError):
+                pass
+        
+        # Try direct text field
+        if "text" in self.response:
+            return self.response["text"]
+        
+        return None

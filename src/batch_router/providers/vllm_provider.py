@@ -16,6 +16,8 @@ from ..core.content import TextContent, ImageContent, DocumentContent, AudioCont
 
 
 class RunningTask(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    
     batch_id: str
     status: BatchStatus = Field(default=BatchStatus.IN_PROGRESS)
     output_paths: OutputPaths

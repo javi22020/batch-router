@@ -6,7 +6,7 @@ from .content import TextContent, ImageContent, DocumentContent, AudioContent, M
 from .enums import BatchStatus, ResultStatus, Modality
 from .messages import UnifiedMessage
 from .requests import UnifiedRequest, UnifiedBatchMetadata
-from .output import BatchStatusResponse, UnifiedResult, RequestCounts, OutputPaths
+from .responses import BatchStatusResponse, UnifiedResult, RequestCounts, OutputPaths
 
 __all__ = [
     # Base class

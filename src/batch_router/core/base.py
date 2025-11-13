@@ -7,7 +7,7 @@ import json
 import asyncio
 import aiofiles
 from .requests import UnifiedRequest, UnifiedBatchMetadata
-from .output import BatchStatusResponse, UnifiedResult
+from .responses import BatchStatusResponse, UnifiedResult
 from .enums import Modality
 from .content import TextContent, ImageContent, DocumentContent, AudioContent
 from ..exceptions import UnsupportedModalityError
