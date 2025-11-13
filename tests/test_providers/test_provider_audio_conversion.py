@@ -6,7 +6,7 @@ from batch_router.core.messages import UnifiedMessage
 from batch_router.core.requests import UnifiedRequest
 from batch_router.providers.openai_provider import OpenAIProvider
 from batch_router.providers.google_provider import GoogleProvider
-from batch_router.providers.vllm_provider import VLLMProvider
+from batch_router.providers.vllm_provider import vLLMProvider
 
 
 class TestOpenAIAudioConversion:
@@ -225,12 +225,12 @@ class TestGoogleAudioConversion:
             provider._convert_content_to_google_format(audio)
 
 
-class TestVLLMAudioConversion:
+class TestvLLMAudioConversion:
     """Test vLLM provider audio conversion."""
 
     def test_convert_audio_to_vllm_wav(self):
         """Test converting WAV audio to vLLM format."""
-        provider = VLLMProvider()
+        provider = vLLMProvider()
         
         audio = AudioContent(
             source_type="base64",
@@ -246,7 +246,7 @@ class TestVLLMAudioConversion:
 
     def test_convert_audio_to_vllm_mp3(self):
         """Test converting MP3 audio to vLLM format."""
-        provider = VLLMProvider()
+        provider = vLLMProvider()
         
         audio = AudioContent(
             source_type="base64",
@@ -261,7 +261,7 @@ class TestVLLMAudioConversion:
 
     def test_convert_audio_to_vllm_url_source_fails(self):
         """Test that URL source is rejected for vLLM."""
-        provider = VLLMProvider()
+        provider = vLLMProvider()
         
         audio = AudioContent(
             source_type="url",
@@ -274,7 +274,7 @@ class TestVLLMAudioConversion:
 
     def test_convert_message_with_audio(self):
         """Test converting a message with audio content."""
-        provider = VLLMProvider()
+        provider = vLLMProvider()
         
         message = UnifiedMessage(
             role="user",
@@ -297,7 +297,7 @@ class TestVLLMAudioConversion:
 
     def test_convert_to_provider_format_adds_modalities(self):
         """Test that modalities field is added when audio is present."""
-        provider = VLLMProvider()
+        provider = vLLMProvider()
         
         requests = [
             UnifiedRequest(

@@ -937,14 +937,14 @@ PROVIDER_OPENAI = "openai"
 PROVIDER_ANTHROPIC = "anthropic"
 PROVIDER_GOOGLE = "google"
 PROVIDER_MISTRAL = "mistral"
-PROVIDER_VLLM = "vllm"
+PROVIDER_vLLM = "vllm"
 
 VALID_PROVIDERS = [
     PROVIDER_OPENAI,
     PROVIDER_ANTHROPIC,
     PROVIDER_GOOGLE,
     PROVIDER_MISTRAL,
-    PROVIDER_VLLM
+    PROVIDER_vLLM
 ]
 
 # Batch size limits (used for validation)
@@ -965,7 +965,7 @@ BATCH_LIMITS = {
         "max_requests": None,  # No documented limit
         "max_size_mb": None
     },
-    PROVIDER_VLLM: {
+    PROVIDER_vLLM: {
         "max_requests": None,  # Local processing
         "max_size_mb": None
     }
@@ -1282,7 +1282,7 @@ from .providers.openai import OpenAIProvider
 from .providers.anthropic import AnthropicProvider
 from .providers.google import GoogleProvider
 from .providers.mistral import MistralProvider
-from .providers.vllm import VLLMProvider
+from .providers.vllm import vLLMProvider
 
 # Exceptions
 from .exceptions import (
@@ -1322,7 +1322,7 @@ __all__ = [
     "AnthropicProvider",
     "GoogleProvider",
     "MistralProvider",
-    "VLLMProvider",
+    "vLLMProvider",
     # Exceptions
     "BatchRouterError",
     "ProviderNotFoundError",
@@ -1526,7 +1526,7 @@ class MockProvider(BaseProvider):
 3. ✅ Test with real API
 
 ### Phase 6: vLLM Provider
-1. ✅ Implement `VLLMProvider`
+1. ✅ Implement `vLLMProvider`
 2. ✅ Handle subprocess execution
 3. ✅ Test with local model
 

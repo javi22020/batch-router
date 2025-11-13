@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch, MagicMock, mock_open
 from datetime import datetime
 from pathlib import Path
 
-from batch_router.providers.vllm_provider import VLLMProvider
+from batch_router.providers.vllm_provider import vLLMProvider
 from batch_router.core.requests import UnifiedRequest, UnifiedBatchMetadata
 from batch_router.core.messages import UnifiedMessage
 from batch_router.core.content import TextContent, ImageContent
@@ -16,14 +16,14 @@ from batch_router.core.config import GenerationConfig
 from batch_router.core.enums import BatchStatus, ResultStatus
 
 
-class TestVLLMProviderConfiguration:
+class TestvLLMProviderConfiguration:
     """Test provider configuration and initialization."""
 
     def test_init_default(self):
         """Test initialization with default parameters."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0, stderr="")
-            provider = VLLMProvider()
+            provider = vLLMProvider()
             assert provider.name == "vllm"
             assert provider.api_key is None
             assert provider.vllm_command == "vllm"
@@ -33,37 +33,37 @@ class TestVLLMProviderConfiguration:
         """Test initialization with custom vLLM command."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0, stderr="")
-            provider = VLLMProvider(vllm_command="/usr/local/bin/vllm")
+            provider = vLLMProvider(vllm_command="/usr/local/bin/vllm")
             assert provider.vllm_command == "/usr/local/bin/vllm"
 
     def test_init_additional_args(self):
         """Test initialization with additional CLI arguments."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0, stderr="")
-            provider = VLLMProvider(additional_args=["--dtype", "float16"])
+            provider = vLLMProvider(additional_args=["--dtype", "float16"])
             assert provider.additional_args == ["--dtype", "float16"]
 
     def test_validate_configuration_vllm_not_found(self):
         """Test validation fails when vLLM is not installed."""
         with patch('subprocess.run', side_effect=FileNotFoundError()):
             with pytest.raises(ValueError, match="vLLM command 'vllm' not found in PATH"):
-                VLLMProvider()
+                vLLMProvider()
 
     def test_validate_configuration_vllm_error(self):
         """Test validation fails when vLLM command returns error."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=1, stderr="vLLM error")
             with pytest.raises(ValueError, match="is not working properly"):
-                VLLMProvider()
+                vLLMProvider()
 
     def test_validate_configuration_timeout(self):
         """Test validation fails when vLLM command times out."""
         with patch('subprocess.run', side_effect=subprocess.TimeoutExpired("vllm", 5)):
             with pytest.raises(ValueError, match="timed out"):
-                VLLMProvider()
+                vLLMProvider()
 
 
-class TestVLLMProviderFormatConversion:
+class TestvLLMProviderFormatConversion:
     """Test conversion between unified and vLLM formats."""
 
     @pytest.fixture
@@ -71,7 +71,7 @@ class TestVLLMProviderFormatConversion:
         """Create a provider instance for testing."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0, stderr="")
-            return VLLMProvider()
+            return vLLMProvider()
 
     def test_convert_simple_text_request(self, provider):
         """Test conversion of simple text-only request."""
@@ -259,7 +259,7 @@ class TestVLLMProviderFormatConversion:
         assert result[1]["custom_id"] == "req-2"
 
 
-class TestVLLMProviderResultConversion:
+class TestvLLMProviderResultConversion:
     """Test conversion of vLLM results to unified format."""
 
     @pytest.fixture
@@ -267,7 +267,7 @@ class TestVLLMProviderResultConversion:
         """Create a provider instance for testing."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0, stderr="")
-            return VLLMProvider()
+            return vLLMProvider()
 
     def test_convert_successful_result(self, provider):
         """Test conversion of successful response."""
@@ -378,7 +378,7 @@ class TestVLLMProviderResultConversion:
         assert text == "Test response"
 
 
-class TestVLLMProviderBatchOperations:
+class TestvLLMProviderBatchOperations:
     """Test batch operations (mocked subprocess calls)."""
 
     @pytest.fixture
@@ -386,7 +386,7 @@ class TestVLLMProviderBatchOperations:
         """Create a provider instance for testing."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0, stderr="")
-            return VLLMProvider()
+            return vLLMProvider()
 
     @pytest.mark.asyncio
     async def test_send_batch(self, provider):
@@ -756,7 +756,7 @@ class TestVLLMProviderBatchOperations:
             await provider.cancel_batch("non_existent_batch")
 
 
-class TestVLLMProviderEdgeCases:
+class TestvLLMProviderEdgeCases:
     """Test edge cases and error handling."""
 
     @pytest.fixture
@@ -764,7 +764,7 @@ class TestVLLMProviderEdgeCases:
         """Create a provider instance for testing."""
         with patch('subprocess.run') as mock_run:
             mock_run.return_value = Mock(returncode=0, stderr="")
-            return VLLMProvider()
+            return vLLMProvider()
 
     def test_empty_system_prompt(self, provider):
         """Test request with None system prompt."""

@@ -99,7 +99,7 @@ class GoogleProvider(BaseProvider):
 class MistralProvider(BaseProvider):
     supported_modalities = {Modality.TEXT, Modality.IMAGE}
 
-class VLLMProvider(BaseProvider):
+class vLLMProvider(BaseProvider):
     supported_modalities = {Modality.TEXT, Modality.IMAGE, Modality.AUDIO}
 ```
 
@@ -746,7 +746,7 @@ class GoogleProvider(BaseProvider):
 **File:** `src/batch_router/providers/vllm_provider.py`
 
 ```python
-class VLLMProvider(BaseProvider):
+class vLLMProvider(BaseProvider):
     """vLLM local provider with audio support (OpenAI-compatible)."""
     
     # Declare supported modalities (model-dependent, but framework supports it)
@@ -1138,7 +1138,7 @@ Users who want to add audio support:
 ### Phase 2: Provider Updates
 - [ ] Update `OpenAIProvider` with audio support
 - [ ] Update `GoogleProvider` with audio support
-- [ ] Update `VLLMProvider` with audio support
+- [ ] Update `vLLMProvider` with audio support
 - [ ] Update `AnthropicProvider` to declare no audio support
 - [ ] Research and update `MistralProvider`
 

@@ -181,10 +181,10 @@ Requires separate installation: `pip install vllm`
 - **Models**: Any model compatible with vLLM
 
 ```python
-from batch_router import VLLMProvider
+from batch_router import vLLMProvider
 
 # Requires vLLM installed: pip install vllm
-provider = VLLMProvider(
+provider = vLLMProvider(
     vllm_command="vllm",
     additional_args=["--tensor-parallel-size", "2"]
 )
@@ -451,7 +451,7 @@ provider = AnthropicProvider(
 ### vLLM with Custom Arguments
 
 ```python
-provider = VLLMProvider(
+provider = vLLMProvider(
     vllm_command="vllm",
     additional_args=[
         "--tensor-parallel-size", "4",

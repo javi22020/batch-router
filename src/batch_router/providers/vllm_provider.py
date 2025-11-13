@@ -21,7 +21,7 @@ from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent, AudioContent
 
 
-class VLLMProvider(BaseProvider):
+class vLLMProvider(BaseProvider):
     """
     vLLM local batch processing provider implementation.
 
@@ -36,7 +36,7 @@ class VLLMProvider(BaseProvider):
     - Synchronous batch processing
 
     Usage:
-        provider = VLLMProvider()
+        provider = vLLMProvider()
         batch_id = await provider.send_batch(batch_metadata)
         status = await provider.get_status(batch_id)
         async for result in provider.get_results(batch_id):
