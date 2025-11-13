@@ -47,10 +47,7 @@ class MockProvider(BaseProvider):
 
     async def get_results(self, batch_id):
         """Mock implementation."""
-        if False:
-            yield  # Make this a generator
-        return
-        yield  # This line is unreachable but makes the function a generator
+        return []
 
     async def cancel_batch(self, batch_id):
         """Mock implementation."""

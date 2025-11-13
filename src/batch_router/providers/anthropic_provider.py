@@ -388,9 +388,9 @@ class AnthropicProvider(BaseProvider):
     async def get_results(
         self,
         batch_id: str
-    ) -> AsyncIterator[UnifiedResult]:
+    ) -> list[UnifiedResult]:
         """
-        Stream results from a completed Anthropic batch.
+        Get results from a completed Anthropic batch.
 
         Steps:
         1. Check if batch is complete
@@ -398,13 +398,13 @@ class AnthropicProvider(BaseProvider):
         3. Save raw results to file
         4. Convert to unified format
         5. Save unified results
-        6. Yield each result
+        6. Return all results
 
         Args:
             batch_id: Anthropic batch ID
 
-        Yields:
-            UnifiedResult objects
+        Returns:
+            List of UnifiedResult objects
 
         Raises:
             Exception: If batch not complete or results unavailable
@@ -422,7 +422,7 @@ class AnthropicProvider(BaseProvider):
         if not results_url:
             raise Exception(f"No results URL available for batch {batch_id}")
 
-        # Stream results from Anthropic
+        # Get results from Anthropic
         try:
             raw_results = []
             for result in self.client.messages.batches.results(batch_id):
@@ -465,10 +465,6 @@ class AnthropicProvider(BaseProvider):
 
                 raw_results.append(result_dict)
 
-                # Convert and yield
-                unified_result = self._convert_from_provider_format([result_dict])[0]
-                yield unified_result
-
             # Load batch metadata for consistent file naming
             custom_name, model = self._load_batch_metadata(batch_id)
 
@@ -476,8 +472,10 @@ class AnthropicProvider(BaseProvider):
             output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
             self._write_jsonl_sync(output_path, raw_results)
 
-            # Save unified results
+            # Convert to unified format
             unified_results = self._convert_from_provider_format(raw_results)
+
+            # Save unified results
             results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
             self._write_jsonl_sync(
                 results_path,
@@ -491,6 +489,9 @@ class AnthropicProvider(BaseProvider):
                     for r in unified_results
                 ]
             )
+
+            # Return all results
+            return unified_results
 
         except Exception as e:
             raise Exception(f"Failed to retrieve batch results: {str(e)}") from e

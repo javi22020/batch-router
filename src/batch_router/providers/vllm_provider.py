@@ -544,15 +544,15 @@ class vLLMProvider(BaseProvider):
     async def get_results(
         self,
         batch_id: str
-    ) -> AsyncIterator[UnifiedResult]:
+    ) -> list[UnifiedResult]:
         """
-        Stream results from a completed batch.
+        Get results from a completed batch.
 
         Steps:
         1. Check batch is complete
         2. Read output file
         3. Convert to unified format
-        4. Yield each result
+        4. Return all results
         """
         if batch_id not in self.running_tasks.keys():
             raise ValueError(f"Batch {batch_id} not found in running tasks")
@@ -567,8 +567,7 @@ class vLLMProvider(BaseProvider):
 
         unified_results = self._convert_from_provider_format(provider_results)
 
-        for result in unified_results:
-            yield result
+        return unified_results
 
     async def cancel_batch(
         self,

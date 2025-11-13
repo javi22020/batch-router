@@ -450,9 +450,9 @@ class MistralProvider(BaseProvider):
     async def get_results(
         self,
         batch_id: str
-    ) -> AsyncIterator[UnifiedResult]:
+    ) -> list[UnifiedResult]:
         """
-        Stream results from a completed Mistral batch.
+        Get results from a completed Mistral batch.
 
         Steps:
         1. Check if batch is complete
@@ -460,13 +460,13 @@ class MistralProvider(BaseProvider):
         3. Save raw results to file
         4. Convert to unified format
         5. Save unified results
-        6. Yield each result
+        6. Return all results
 
         Args:
             batch_id: Mistral batch job ID
 
-        Yields:
-            UnifiedResult objects
+        Returns:
+            List of UnifiedResult objects
 
         Raises:
             Exception: If batch not complete or results unavailable
@@ -497,10 +497,6 @@ class MistralProvider(BaseProvider):
                     result = json.loads(line)
                     raw_results.append(result)
 
-                    # Convert and yield immediately
-                    unified_result = self._convert_from_provider_format([result])[0]
-                    yield unified_result
-
             # Load batch metadata for consistent file naming
             custom_name, model = self._load_batch_metadata(batch_id)
 
@@ -508,8 +504,10 @@ class MistralProvider(BaseProvider):
             output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
             self._write_jsonl_sync(output_path, raw_results)
 
-            # Save unified results
+            # Convert to unified format
             unified_results = self._convert_from_provider_format(raw_results)
+
+            # Save unified results
             results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
             self._write_jsonl_sync(
                 results_path,
@@ -523,6 +521,9 @@ class MistralProvider(BaseProvider):
                     for r in unified_results
                 ]
             )
+
+            # Return all results
+            return unified_results
 
         except Exception as e:
             raise Exception(f"Failed to retrieve batch results: {str(e)}") from e

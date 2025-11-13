@@ -200,22 +200,22 @@ class BaseProvider(ABC):
     async def get_results(
         self,
         batch_id: str
-    ) -> AsyncIterator[UnifiedResult]:
+    ) -> list[UnifiedResult]:
         """
-        Stream results from a completed batch.
+        Get results from a completed batch.
 
         Implementation steps:
         1. Download/fetch results from provider
         2. Save raw results to .batch_router/generated/<provider>/
         3. Convert to unified format
         4. Save unified results JSONL
-        5. Yield each result
+        5. Return all results
 
         Args:
             batch_id: Batch identifier
 
-        Yields:
-            UnifiedResult objects (order NOT guaranteed)
+        Returns:
+            List of UnifiedResult objects (order NOT guaranteed)
 
         Raises:
             BatchNotCompleteError: If batch is still processing
@@ -272,11 +272,7 @@ class BaseProvider(ABC):
             await asyncio.sleep(poll_rate)
             status = await self.get_status(batch_id=batch_id)
         
-        results_iterator = await self.get_results(batch_id=batch_id)
-
-        results: list[UnifiedResult] = []
-        async for result in results_iterator:
-            results.append(result)
+        results = await self.get_results(batch_id=batch_id)
         
         return results
 

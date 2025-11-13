@@ -567,9 +567,9 @@ class GoogleProvider(BaseProvider):
     async def get_results(
         self,
         batch_id: str
-    ) -> AsyncIterator[UnifiedResult]:
+    ) -> list[UnifiedResult]:
         """
-        Stream results from a completed Google batch job.
+        Get results from a completed Google batch job.
 
         Implementation steps:
         1. Check if batch is complete
@@ -577,13 +577,13 @@ class GoogleProvider(BaseProvider):
         3. Save raw results to output.jsonl
         4. Convert to unified format
         5. Save unified results
-        6. Yield each result
+        6. Return all results
 
         Args:
             batch_id: Google batch job name
 
-        Yields:
-            UnifiedResult objects
+        Returns:
+            List of UnifiedResult objects
 
         Raises:
             BatchNotCompleteError: If batch is still processing
@@ -659,9 +659,8 @@ class GoogleProvider(BaseProvider):
                 ]
             )
 
-            # Step 7: Yield results
-            for result in unified_results:
-                yield result
+            # Step 7: Return all results
+            return unified_results
 
         except BatchNotCompleteError:
             raise

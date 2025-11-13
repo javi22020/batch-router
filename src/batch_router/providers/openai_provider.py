@@ -514,9 +514,9 @@ class OpenAIProvider(BaseProvider):
     async def get_results(
         self,
         batch_id: str
-    ) -> AsyncIterator[UnifiedResult]:
+    ) -> list[UnifiedResult]:
         """
-        Stream results from a completed batch.
+        Get results from a completed batch.
 
         Steps:
         1. Check batch is complete
@@ -524,7 +524,7 @@ class OpenAIProvider(BaseProvider):
         3. Save raw output
         4. Convert to unified format
         5. Save unified results
-        6. Yield each result
+        6. Return all results
         """
         # Get batch status
         batch = await self.async_client.batches.retrieve(batch_id)
@@ -537,7 +537,7 @@ class OpenAIProvider(BaseProvider):
 
         if not batch.output_file_id:
             # No results available (all failed or expired)
-            return
+            return []
 
         # Download output file
         file_response = await self.async_client.files.content(batch.output_file_id)
@@ -570,9 +570,8 @@ class OpenAIProvider(BaseProvider):
         ]
         self._write_jsonl_sync(str(results_path), unified_dicts)
 
-        # Yield each result
-        for result in unified_results:
-            yield result
+        # Return all results
+        return unified_results
 
     async def cancel_batch(
         self,
