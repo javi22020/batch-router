@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from batch_router.utils import sanitize_filename_component
+from batch_router.utilities import sanitize_filename_component
 from batch_router.core.base import BaseProvider
 from batch_router.core.requests import UnifiedRequest, UnifiedBatchMetadata
 from batch_router.core.responses import BatchStatusResponse, UnifiedResult

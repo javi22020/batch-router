@@ -25,7 +25,7 @@ from ..exceptions import (
     BatchNotFoundError,
     BatchNotCompleteError,
 )
-from ..utils.file_manager import FileManager
+from ..utilities.file_manager import FileManager
 
 
 class GoogleProvider(BaseProvider):

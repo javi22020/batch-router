@@ -1026,7 +1026,7 @@ def test_anthropic_rejects_audio():
 import pytest
 from batch_router import OpenAIProvider, UnifiedRequest, UnifiedMessage
 from batch_router.core.content import TextContent, AudioContent
-from batch_router.utils.audio import encode_audio_file
+from batch_router.utilities.audio import encode_audio_file
 
 
 @pytest.mark.integration
@@ -1097,7 +1097,7 @@ Users who want to add audio support:
 2. **Import new types:**
    ```python
    from batch_router import AudioContent
-   from batch_router.utils.audio import encode_audio_file
+   from batch_router.utilities.audio import encode_audio_file
    ```
 
 3. **Use in messages:**

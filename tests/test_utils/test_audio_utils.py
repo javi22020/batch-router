@@ -3,7 +3,7 @@
 import base64
 import pytest
 from pathlib import Path
-from batch_router.utils.audio import (
+from batch_router.utilities.audio import (
     encode_audio_file,
     decode_audio_content,
     validate_audio_format,
