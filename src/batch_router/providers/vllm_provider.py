@@ -568,11 +568,12 @@ class vLLMProvider(BaseProvider):
                 raise ValueError(f"Batch {batch_id} not found in running tasks")
             
             running_task = self.running_tasks[batch_id]
-            await running_task.task.cancel()
+            running_task.task.cancel()
             running_task.status = BatchStatus.CANCELLED
             running_task.completed_at = datetime.now()
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Error cancelling batch {batch_id}: {e}")
             return False
 
     async def list_batches(
