@@ -1,6 +1,6 @@
 [project]
 name = "batch-router"
-version = "0.1.5"
+version = "0.1.3"
 description = "A Python package designed to facilitate batch LLM requests efficiently across multiple providers with a unified interface."
 readme = "README.md"
 authors = [
