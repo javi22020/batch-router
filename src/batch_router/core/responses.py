@@ -1,12 +1,16 @@
 """Response structures from batch operations."""
 
-from dataclasses import dataclass, field
+from pydantic import BaseModel
 from typing import Optional, Any
 from .enums import BatchStatus, ResultStatus
+from datetime import datetime
+from pathlib import Path
 
+class OutputPaths(BaseModel):
+    raw_output_batch_jsonl: str | Path
+    unified_output_jsonl: str | Path
 
-@dataclass
-class RequestCounts:
+class RequestCounts(BaseModel):
     """
     Breakdown of request statuses within a batch.
     Used to show progress and completion statistics.
@@ -29,8 +33,7 @@ class RequestCounts:
         return (self.succeeded / self.total) * 100
 
 
-@dataclass
-class BatchStatusResponse:
+class BatchStatusResponse(BaseModel):
     """
     Response from checking batch status.
     Does NOT contain actual results - only status info.
@@ -40,13 +43,13 @@ class BatchStatusResponse:
     status: BatchStatus
     request_counts: RequestCounts
 
-    # Timestamps (ISO 8601 format)
-    created_at: str
-    completed_at: Optional[str] = None
-    expires_at: Optional[str] = None
+    # Timestamps
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
 
     # Provider-specific additional data
-    provider_data: dict[str, Any] = field(default_factory=dict)
+    provider_data: dict[str, Any] = {}
 
     def is_complete(self) -> bool:
         """Check if batch has finished processing."""
@@ -58,8 +61,7 @@ class BatchStatusResponse:
         ]
 
 
-@dataclass
-class UnifiedResult:
+class UnifiedResult(BaseModel):
     """
     Individual request result within a batch.
 
@@ -75,7 +77,7 @@ class UnifiedResult:
     error: Optional[dict[str, Any]] = None
 
     # Provider-specific raw data (for debugging)
-    provider_data: dict[str, Any] = field(default_factory=dict)
+    provider_data: dict[str, Any] = {}
 
     def get_text_response(self) -> str | None:
         """
@@ -110,7 +112,6 @@ class UnifiedResult:
                     if parts and len(parts) > 0:
                         return parts[0].get("text")
 
-            # Direct text field (fallback)
             if "text" in self.response:
                 return self.response.get("text")
 

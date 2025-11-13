@@ -5,6 +5,7 @@ from typing import Optional, Any, AsyncIterator
 from pathlib import Path
 import json
 import asyncio
+import aiofiles
 from .requests import UnifiedRequest, UnifiedBatchMetadata
 from .responses import BatchStatusResponse, UnifiedResult
 from .enums import Modality
@@ -407,3 +408,38 @@ class BaseProvider(ABC):
             filename = f"batch_{batch_id}_{file_type}.jsonl"
 
         return base_dir / filename
+
+    async def _read_jsonl(
+        self,
+        file_path: str | Path
+    ) -> list[dict[str, Any]]:
+        """Read JSONL file."""
+        if aiofiles:
+            async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+                content = await f.read()
+                lines = content.strip().split("\n")
+                return [json.loads(line) for line in lines if line.strip()]
+        else:
+            with open(file_path, "r", encoding="utf-8") as f:
+                lines = f.read().strip().split("\n")
+                return [json.loads(line) for line in lines if line.strip()]
+
+    async def _write_jsonl(
+        self,
+        file_path: str | Path,
+        data: list[dict[str, Any]]
+    ) -> None:
+        """Write data to JSONL file."""
+        # Ensure directory exists
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+        if aiofiles:
+            # Use async file operations if available
+            async with aiofiles.open(file_path, "w") as f:
+                for item in data:
+                    await f.write(json.dumps(item) + "\n")
+        else:
+            # Fallback to synchronous write
+            with open(file_path, "w") as f:
+                for item in data:
+                    f.write(json.dumps(item) + "\n")

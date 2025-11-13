@@ -1,167 +1,119 @@
-"""vLLM local batch processing provider implementation."""
+"""vLLM Batch API provider implementation."""
 
 import json
 import os
-import asyncio
-import subprocess
 from datetime import datetime
 from typing import Optional, Any, AsyncIterator
 from pathlib import Path
+from pydantic import BaseModel
+import asyncio
 
-try:
-    import aiofiles
-except ImportError:
-    aiofiles = None  # type: ignore
+from batch_router.core.messages import UnifiedMessage
+
+from openai import (
+    AsyncOpenAI as AsyncvLLM,
+    OpenAI as vLLM
+)
 
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
-from ..core.messages import UnifiedMessage
-from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
+from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts, OutputPaths
 from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent, AudioContent
 
+class RunningTask(BaseModel):
+    batch_id: str
+    status: BatchStatus
+    output_paths: OutputPaths
+    created_at: datetime = datetime.now()
+    completed_at: datetime | None = None
 
-class vLLMProvider(BaseProvider):
+class vLLMAIProvider(BaseProvider):
     """
-    vLLM local batch processing provider implementation.
-
-    Uses vLLM's offline batch inference with OpenAI batch file format.
-    Runs locally via subprocess execution of `vllm run-batch` command.
+    vLLM Batch API provider implementation.
 
     Supports:
-    - Chat Completions API via local batch processing
-    - Text and multimodal content (images, audio - depending on model support)
-    - System prompt conversion to system message (OpenAI-compatible)
-    - Local execution (no API costs)
-    - Synchronous batch processing
+    - Chat Completions API via batch processing
+    - Text and multimodal content (images, audio via base64)
+    - System prompt conversion to system message
+    - 50% cost reduction compared to synchronous API
+    - 24-hour completion window
 
     Usage:
-        provider = vLLMProvider()
+        provider = vLLMAIProvider(api_key="sk-...")
         batch_id = await provider.send_batch(batch_metadata)
         status = await provider.get_status(batch_id)
         async for result in provider.get_results(batch_id):
             print(result.custom_id, result.status)
-
-    Note:
-        - Requires vLLM to be installed and available in PATH
-        - Batch processing runs synchronously in background
-        - Models must be available locally or downloadable
-        - Audio support depends on the model being used
     """
     
-    # Declare supported modalities (model-dependent, but framework supports it)
+    # Declare supported modalities
     supported_modalities = {Modality.TEXT, Modality.IMAGE, Modality.AUDIO}
 
     def __init__(
         self,
+        api_key: Optional[str],
+        base_url: Optional[str],
         vllm_command: str = "vllm",
-        additional_args: Optional[list[str]] = None,
+        additional_args: list[str] = [],
         **kwargs
     ):
         """
         Initialize vLLM provider.
 
         Args:
-            vllm_command: Path to vLLM executable (default: "vllm")
-            additional_args: Additional CLI arguments to pass to vllm run-batch
+            api_key: vLLM API key (or set VLLM_API_KEY env var)
+            base_url: Optional custom base URL for API
+            vllm_command: Optional vLLM command
+            additional_args: Optional additional CLI arguments for run-batch command
             **kwargs: Additional configuration options
         """
-        # Set attributes before calling super().__init__() because
-        # _validate_configuration() is called from super().__init__()
+        # Get API key from parameter or environment
+        self.api_key = api_key or os.environ.get("VLLM_API_KEY") or "EMPTY"
+        self.base_url = base_url or os.environ.get("VLLM_BASE_URL") or "http://localhost:8005"
         self.vllm_command = vllm_command
-        self.additional_args = additional_args or []
+        self.running_tasks: dict[str, RunningTask] = {}
 
-        # Track running processes (batch_id -> process info)
-        self.processes: dict[str, dict[str, Any]] = {}
+        super().__init__(name="vllm", api_key=api_key, **kwargs)
 
-        super().__init__(name="vllm", api_key=None, **kwargs)
+        # Initialize both sync and async clients
+        client_kwargs = {}
+        client_kwargs["api_key"] = api_key
+        client_kwargs["base_url"] = base_url
 
-        # Load existing batch metadata
-        self._load_batch_metadata()
+        self.client = vLLM(**client_kwargs)
+        self.async_client = AsyncvLLM(**client_kwargs)
 
     def _validate_configuration(self) -> None:
-        """Validate that vLLM is available."""
-        # Check if vLLM is installed and available
-        try:
-            result = subprocess.run(
-                [self.vllm_command, "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode != 0:
-                raise ValueError(
-                    f"vLLM command '{self.vllm_command}' is not working properly. "
-                    f"Error: {result.stderr}"
-                )
-        except FileNotFoundError:
-            raise ValueError(
-                f"vLLM command '{self.vllm_command}' not found in PATH. "
-                "Please install vLLM: pip install vllm"
-            )
-        except subprocess.TimeoutExpired:
-            raise ValueError(
-                f"vLLM command '{self.vllm_command}' timed out. "
-                "Please check your vLLM installation."
-            )
-
-    def _get_metadata_file_path(self) -> Path:
-        """Get path to batch metadata file."""
-        base_dir = Path(".batch_router/generated") / self.name
-        base_dir.mkdir(parents=True, exist_ok=True)
-        return base_dir / "batch_metadata.json"
-
-    def _load_batch_metadata(self) -> None:
-        """Load batch metadata from file."""
-        metadata_path = self._get_metadata_file_path()
-        if metadata_path.exists():
-            try:
-                with open(metadata_path, "r") as f:
-                    self.processes = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                self.processes = {}
-        else:
-            self.processes = {}
-
-    def _save_batch_metadata(self) -> None:
-        """Save batch metadata to file."""
-        metadata_path = self._get_metadata_file_path()
-        metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(metadata_path, "w") as f:
-            json.dump(self.processes, f, indent=2)
+        pass # No validation needed
 
     def _generate_batch_id(self) -> str:
-        """Generate unique batch ID."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        return f"vllm_{timestamp}"
-    
-    def _get_current_model_id(self) -> str:
-        return "" # TODO: Use OpenAI Python SDK to get the current model id
+        return f"vllm_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
     def _convert_to_provider_format(
         self,
         requests: list[UnifiedRequest]
     ) -> list[dict[str, Any]]:
         """
-        Convert unified requests to vLLM (OpenAI-compatible) format (updated for audio).
+        Convert unified requests to vLLM Batch API format (updated for audio).
 
-        vLLM uses the same batch file format as OpenAI:
+        vLLM Batch format:
         {
             "custom_id": "request-1",
             "method": "POST",
             "url": "/v1/chat/completions",
             "body": {
-                "model": "model-name",
+                "model": "model_name",
                 "messages": [...],
                 "modalities": ["text", "audio"],  # Added when audio is present
-                "max_completion_tokens": 1000,
+                "max_tokens": 1000,
                 ...
             }
         }
 
         System prompt conversion:
         - Unified: request.system_prompt
-        - vLLM: Prepended as message with role="system" (OpenAI-compatible)
+        - vLLM: Prepended as message with role="system" (vLLM-compatible)
         """
         provider_requests = []
 
@@ -208,20 +160,22 @@ class vLLMProvider(BaseProvider):
                 config = request.generation_config
 
                 if config.max_tokens is not None:
-                    body["max_completion_tokens"] = config.max_tokens
+                    body["max_tokens"] = config.max_tokens
                 if config.temperature is not None:
                     body["temperature"] = config.temperature
                 if config.top_p is not None:
                     body["top_p"] = config.top_p
-                if config.top_k is not None:
-                    body["top_k"] = config.top_k
+                if config.presence_penalty is not None:
+                    body["presence_penalty"] = config.presence_penalty
+                if config.frequency_penalty is not None:
+                    body["frequency_penalty"] = config.frequency_penalty
                 if config.stop_sequences is not None:
                     body["stop"] = config.stop_sequences
 
             # Add provider-specific kwargs
             body.update(request.provider_kwargs)
 
-            # Create vLLM batch request format (OpenAI-compatible)
+            # Create vLLM batch request format
             provider_request = {
                 "custom_id": request.custom_id,
                 "method": "POST",
@@ -234,7 +188,7 @@ class vLLMProvider(BaseProvider):
         return provider_requests
 
     def _convert_message_to_vllm(self, message: UnifiedMessage) -> dict[str, Any]:
-        """Convert unified message to vLLM (OpenAI-compatible) format (updated for audio)."""
+        """Convert unified message to vLLM message format (updated for audio)."""
         # Handle text-only messages (most common case)
         if len(message.content) == 1 and isinstance(message.content[0], TextContent):
             return {
@@ -242,7 +196,7 @@ class vLLMProvider(BaseProvider):
                 "content": message.content[0].text
             }
 
-        # Handle multimodal messages (if model supports it)
+        # Handle multimodal messages
         content_parts = []
         for content_item in message.content:
             if isinstance(content_item, TextContent):
@@ -257,8 +211,8 @@ class vLLMProvider(BaseProvider):
                 audio_part = self._convert_audio_to_vllm(content_item)
                 content_parts.append(audio_part)
             elif isinstance(content_item, DocumentContent):
-                # vLLM/OpenAI doesn't support documents in chat completions
-                # Skip for now
+                # vLLM doesn't support documents in chat completions
+                # Skip or raise error
                 pass
 
         return {
@@ -267,7 +221,7 @@ class vLLMProvider(BaseProvider):
         }
 
     def _convert_image_to_vllm(self, image: ImageContent) -> dict[str, Any]:
-        """Convert unified image content to vLLM (OpenAI-compatible) format."""
+        """Convert unified image content to vLLM format."""
         if image.source_type == "url":
             return {
                 "type": "image_url",
@@ -276,7 +230,7 @@ class vLLMProvider(BaseProvider):
                 }
             }
         elif image.source_type == "base64":
-            # vLLM expects OpenAI format: data:image/jpeg;base64,<base64_string>
+            # vLLM expects: data:image/jpeg;base64,<base64_string>
             data_url = f"data:{image.media_type};base64,{image.data}"
             return {
                 "type": "image_url",
@@ -285,7 +239,7 @@ class vLLMProvider(BaseProvider):
                 }
             }
         else:
-            # file_uri - treat as URL
+            # file_uri not directly supported, treat as URL
             return {
                 "type": "image_url",
                 "image_url": {
@@ -297,10 +251,7 @@ class vLLMProvider(BaseProvider):
         """
         Convert unified audio content to vLLM format.
         
-        vLLM uses OpenAI-compatible format with audio support.
-        The format is identical to OpenAI's audio input format.
-        
-        Format:
+        vLLM expects audio in the following format:
         {
             "type": "input_audio",
             "input_audio": {
@@ -309,23 +260,30 @@ class vLLMProvider(BaseProvider):
             }
         }
         
-        Note: Like OpenAI, vLLM uses simple format names ("wav", "mp3"),
+        The request must also include:
+        {
+            "modalities": ["text", "audio"],
+            ...
+        }
+        
+        Note: vLLM uses "format" field with simple extension names,
         not full MIME types.
         """
         if audio.source_type != "base64":
             raise ValueError(
-                "vLLM only supports base64-encoded audio in batch processing. "
+                "vLLM batch API only supports base64-encoded audio. "
                 f"Got source_type={audio.source_type}. "
                 "Convert URL or file_uri audio to base64 first."
             )
         
-        # Extract and normalize format from media_type
+        # Extract format from media_type and normalize
+        # "audio/wav" -> "wav", "audio/mp3" -> "mp3", "audio/mpeg" -> "mp3"
         if audio.media_type in ("audio/wav", "audio/wave"):
             audio_format = "wav"
         elif audio.media_type in ("audio/mp3", "audio/mpeg"):
             audio_format = "mp3"
         else:
-            # Should never happen due to AudioContent validation
+            # Should never happen due to AudioContent validation, but be defensive
             raise ValueError(
                 f"Unsupported audio format for vLLM: {audio.media_type}. "
                 "Only WAV and MP3 are supported."
@@ -346,18 +304,18 @@ class vLLMProvider(BaseProvider):
         """
         Convert vLLM batch results to unified format.
 
-        vLLM result format (OpenAI-compatible):
+        vLLM result format:
         {
-            "id": "vllm-abc123",
+            "id": "batch_req_123",
             "custom_id": "request-1",
             "response": {
                 "status_code": 200,
-                "request_id": "vllm-batch-xyz",
+                "request_id": "req_123",
                 "body": {
-                    "id": "cmpl-123",
+                    "id": "chatcmpl-123",
                     "object": "chat.completion",
-                    "created": 1234567890,
-                    "model": "model-name",
+                    "created": 1711652795,
+                    "model": "model_name",
                     "choices": [...],
                     "usage": {...}
                 }
@@ -410,153 +368,124 @@ class vLLMProvider(BaseProvider):
             unified_results.append(unified_result)
 
         return unified_results
+    
+    async def _run_vllm_batch(
+        self,
+        batch_id: str,
+        input_file: str | Path,
+        output_paths: OutputPaths,
+        model: str | Path
+    ):
+        output_file = output_paths.raw_output_batch_jsonl
+        cmd = [
+                self.vllm_command,
+                "run-batch",
+                "-i", input_file if isinstance(input_file, str) else str(input_file),
+                "-o", output_file if isinstance(output_file, str) else str(output_file),
+                "--model", model if isinstance(model, str) else str(model)
+            ]
+
+        # Add any additional arguments
+        cmd.extend(self.additional_args)
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+
+        _ = await process.communicate()
+
+        out_vllm = await self._read_jsonl(output_file)
+
+        return batch_id, out_vllm, output_paths
+    
+    async def _vllm_done_callback(
+        self,
+        task: asyncio.Task[tuple[str, list[dict[str, Any]], OutputPaths]]
+    ):
+        batch_id, out_vllm, output_paths = task.result()
+        output_unified_file = output_paths.unified_output_jsonl
+
+        unified_results = self._convert_from_provider_format(out_vllm)
+
+        unified_dicts = [
+            unified_result.model_dump() for unified_result in unified_results
+        ]
+
+        await self._write_jsonl(output_unified_file, unified_dicts)
+
+        self.running_tasks[batch_id].status = BatchStatus.COMPLETED
+        self.running_tasks[batch_id].output_paths = output_paths
+        self.running_tasks[batch_id].completed_at = datetime.now()
 
     async def send_batch(
         self,
         batch: UnifiedBatchMetadata
     ) -> str:
         """
-        Send batch to vLLM for local processing with audio support.
+        Send batch to vLLM with audio support.
 
         Steps:
         1. Validate modalities
-        2. Convert requests to vLLM (OpenAI-compatible) format
-        3. Generate batch ID
-        4. Save unified format JSONL
-        5. Save provider format JSONL (input file)
-        6. Start vLLM batch process in background
+        2. Convert requests to vLLM format
+        3. Save unified format JSONL
+        4. Save provider format JSONL
+        5. Upload file to vLLM
+        6. Create batch job
         7. Return batch ID
-
-        Note: Unlike cloud providers, vLLM runs synchronously in a subprocess.
-        The batch processing happens in the background.
         """
-        # Validate modalities FIRST
         self.validate_request_modalities(batch.requests)
-        
-        # Generate batch ID
+
         batch_id = self._generate_batch_id()
+        
+        # Convert to provider format
+        provider_requests = self._convert_to_provider_format(batch.requests)
 
         # Extract custom naming parameters
         custom_name = batch.name
         model = batch.requests[0].model if batch.requests else None
 
-        # Convert to provider format
-        provider_requests = self._convert_to_provider_format(batch.requests)
+        # Save metadata for later use in get_results
+        self._save_batch_metadata(batch_id, custom_name, model)
 
-        # Get file paths
+        # Now save the files with proper batch_id
         unified_path = self.get_batch_file_path(batch_id, "unified", custom_name, model)
         provider_path = self.get_batch_file_path(batch_id, "provider", custom_name, model)
-        output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
 
         # Save unified format
         unified_data = [req.to_dict() for req in batch.requests]
         await self._write_jsonl(str(unified_path), unified_data)
 
-        # Save provider format (input file for vLLM)
+        # Save provider format
         await self._write_jsonl(str(provider_path), provider_requests)
 
-        # Extract model from first request (vLLM requires all requests use same model)
-        if not batch.requests:
-            raise ValueError("No requests in batch")
+        # Get results path
+        output_provider_file = self.get_batch_file_path(batch_id, "output", custom_name, model)
+        output_unified_file = self.get_batch_file_path(batch_id, "results", custom_name, model)
 
-        model = batch.requests[0].model
+        output_paths = OutputPaths(
+            raw_output_batch_jsonl=output_provider_file,
+            unified_output_jsonl=output_unified_file,
+        )
 
-        # Validate all requests use the same model
-        for req in batch.requests:
-            if req.model != model:
-                raise ValueError(
-                    "vLLM batch processing requires all requests to use the same model. "
-                    f"Found models: {model} and {req.model}"
-                )
-
-        # Store batch metadata
-        self.processes[batch_id] = {
-            "batch_id": batch_id,
-            "status": "in_progress",
-            "model": model,
-            "input_file": str(provider_path),
-            "output_file": str(output_path),
-            "created_at": datetime.now().isoformat(),
-            "total_requests": len(batch.requests),
-            "completed_at": None,
-            "process_info": None,
-            "metadata": batch.metadata
-        }
-        self._save_batch_metadata()
-
-        # Start vLLM batch process in background
-        asyncio.create_task(self._run_vllm_batch(batch_id, str(provider_path), str(output_path), model))
-
-        return batch_id
-
-    async def _run_vllm_batch(
-        self,
-        batch_id: str,
-        input_file: str,
-        output_file: str,
-        model: str
-    ) -> None:
-        """
-        Run vLLM batch processing in background.
-
-        This executes the vllm run-batch command asynchronously.
-        """
-        try:
-            # Build vLLM command
-            cmd = [
-                self.vllm_command,
-                "run-batch",
-                "-i", input_file,
-                "-o", output_file,
-                "--model", model
-            ]
-
-            # Add any additional arguments
-            cmd.extend(self.additional_args)
-
-            # Run the command
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+        task = asyncio.create_task(
+            self._run_vllm_batch(
+                provider_path,
+                output_provider_file,
+                output_unified_file,
+                model
             )
+        )
 
-            # Update process info
-            if batch_id in self.processes:
-                self.processes[batch_id]["process_info"] = {
-                    "pid": process.pid,
-                    "command": " ".join(cmd)
-                }
-                self._save_batch_metadata()
+        task.add_done_callback(self._vllm_done_callback)
 
-            # Wait for process to complete
-            stdout, stderr = await process.communicate()
-
-            # Update batch status
-            if batch_id in self.processes:
-                if process.returncode == 0:
-                    self.processes[batch_id]["status"] = "completed"
-                    self.processes[batch_id]["completed_at"] = datetime.now().isoformat()
-                else:
-                    self.processes[batch_id]["status"] = "failed"
-                    self.processes[batch_id]["error"] = {
-                        "code": f"exit_{process.returncode}",
-                        "message": stderr.decode() if stderr else "Process failed"
-                    }
-
-                self.processes[batch_id]["process_info"] = None
-                self._save_batch_metadata()
-
-        except Exception as e:
-            # Update batch status on error
-            if batch_id in self.processes:
-                self.processes[batch_id]["status"] = "failed"
-                self.processes[batch_id]["error"] = {
-                    "code": "exception",
-                    "message": str(e)
-                }
-                self.processes[batch_id]["process_info"] = None
-                self._save_batch_metadata()
+        self.running_tasks[batch_id] = RunningTask(
+            batch_id=batch_id,
+            status=BatchStatus.IN_PROGRESS
+        )
+        
+        return batch_id
 
     async def get_status(
         self,
@@ -565,76 +494,33 @@ class vLLMProvider(BaseProvider):
         """
         Get current status of a batch.
 
-        For vLLM, status is determined by:
-        1. Check batch metadata
-        2. Check if output file exists
-        3. Parse output file to get request counts if available
-
-        vLLM doesn't have API-level status like cloud providers,
-        so we track status based on file existence and process state.
+        vLLM status values:
+        - validating
+        - failed
+        - in_progress
+        - finalizing
+        - completed
+        - expired
+        - cancelling
+        - cancelled
         """
-        # Check if batch exists
-        if batch_id not in self.processes:
-            raise ValueError(f"Batch {batch_id} not found")
-
-        batch_info = self.processes[batch_id]
-
-        # Determine status
-        output_file = Path(batch_info["output_file"])
-
-        if batch_info["status"] == "failed":
-            status = BatchStatus.FAILED
-        elif batch_info["status"] == "completed" or output_file.exists():
-            status = BatchStatus.COMPLETED
-            # Update status if it was still marked as in_progress
-            if batch_info["status"] == "in_progress":
-                batch_info["status"] = "completed"
-                batch_info["completed_at"] = datetime.now().isoformat()
-                self._save_batch_metadata()
-        else:
-            status = BatchStatus.IN_PROGRESS
-
-        # Count results if output file exists
-        if output_file.exists():
-            try:
-                results = await self._read_jsonl(str(output_file))
-                succeeded = sum(1 for r in results if not r.get("error"))
-                errored = sum(1 for r in results if r.get("error"))
-                processing = batch_info["total_requests"] - succeeded - errored
-            except:
-                # If we can't read the file yet, assume still processing
-                succeeded = 0
-                errored = 0
-                processing = batch_info["total_requests"]
-        else:
-            succeeded = 0
-            errored = 0
-            processing = batch_info["total_requests"]
-
-        request_counts = RequestCounts(
-            total=batch_info["total_requests"],
-            processing=processing,
-            succeeded=succeeded,
-            errored=errored,
-            cancelled=0,
-            expired=0
-        )
+        if batch_id not in self.running_tasks.keys():
+            raise ValueError(f"Batch {batch_id} not found in running tasks")
+        
+        running_task = self.running_tasks[batch_id]
+        status = running_task.status
 
         return BatchStatusResponse(
             batch_id=batch_id,
             provider="vllm",
             status=status,
-            request_counts=request_counts,
-            created_at=batch_info["created_at"],
-            completed_at=batch_info.get("completed_at"),
-            expires_at=None,  # vLLM batches don't expire
-            provider_data={
-                "model": batch_info["model"],
-                "input_file": batch_info["input_file"],
-                "output_file": batch_info["output_file"],
-                "process_info": batch_info.get("process_info"),
-                "raw_status": batch_info["status"]
-            }
+            request_counts=RequestCounts(
+                total=1,
+            ),
+            created_at=running_task.created_at,
+            completed_at=running_task.completed_at,
+            expires_at=None,
+            provider_data={}
         )
 
     async def get_results(
@@ -645,31 +531,40 @@ class vLLMProvider(BaseProvider):
         Stream results from a completed batch.
 
         Steps:
-        1. Check batch exists and is complete
-        2. Read output file
-        3. Convert to unified format
-        4. Save unified results
-        5. Yield each result
+        1. Check batch is complete
+        2. Download output file
+        3. Save raw output
+        4. Convert to unified format
+        5. Save unified results
+        6. Yield each result
         """
-        # Check if batch exists
-        if batch_id not in self.processes:
-            raise ValueError(f"Batch {batch_id} not found")
+        # Get batch status
+        batch = await self.async_client.batches.retrieve(batch_id)
 
-        batch_info = self.processes[batch_id]
-        output_file = Path(batch_info["output_file"])
-
-        # Check if output file exists
-        if not output_file.exists():
+        if batch.status not in ["completed", "failed", "expired", "cancelled"]:
             raise ValueError(
                 f"Batch {batch_id} is not complete. "
-                f"Output file does not exist yet."
+                f"Current status: {batch.status}"
             )
 
-        # Read output file
-        provider_results = await self._read_jsonl(str(output_file))
+        if not batch.output_file_id:
+            # No results available (all failed or expired)
+            return
 
-        self._load_batch_metadata()
-        batch_info = self.processes[batch_id]
+        # Download output file
+        file_response = await self.async_client.files.content(batch.output_file_id)
+        output_content = file_response.text
+
+        # Parse JSONL
+        output_lines = output_content.strip().split("\n")
+        provider_results = [json.loads(line) for line in output_lines if line.strip()]
+
+        # Load batch metadata for consistent file naming
+        custom_name, model = self._load_batch_metadata(batch_id)
+
+        # Save raw output
+        output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
+        await self._write_jsonl(str(output_path), provider_results)
 
         # Convert to unified format
         unified_results = self._convert_from_provider_format(provider_results)
@@ -698,82 +593,80 @@ class vLLMProvider(BaseProvider):
         """
         Cancel a running batch.
 
-        For vLLM, this attempts to kill the running process.
-
         Returns:
             True if cancelled, False if already complete
         """
-        # Check if batch exists
-        if batch_id not in self.processes:
-            raise ValueError(f"Batch {batch_id} not found")
-
-        batch_info = self.processes[batch_id]
-
-        # If already complete, can't cancel
-        if batch_info["status"] in ["completed", "failed", "cancelled"]:
+        try:
+            batch = await self.async_client.batches.cancel(batch_id)
+            return batch.status in ["cancelling", "cancelled"]
+        except Exception:
+            # Batch might already be complete
             return False
 
-        # Try to kill the process if it's running
-        process_info = batch_info.get("process_info")
-        if process_info and "pid" in process_info:
-            try:
-                import signal
-                os.kill(process_info["pid"], signal.SIGTERM)
-
-                # Update status
-                batch_info["status"] = "cancelled"
-                batch_info["completed_at"] = datetime.now().isoformat()
-                batch_info["process_info"] = None
-                self._save_batch_metadata()
-
-                return True
-            except (OSError, ProcessLookupError):
-                # Process already finished
-                pass
-
-        # Mark as cancelled anyway
-        batch_info["status"] = "cancelled"
-        batch_info["completed_at"] = datetime.now().isoformat()
-        batch_info["process_info"] = None
-        self._save_batch_metadata()
-
-        return True
-
-    # ========================================================================
-    # Helper methods
-    # ========================================================================
-
-    async def _write_jsonl(
+    async def list_batches(
         self,
-        file_path: str,
-        data: list[dict[str, Any]]
-    ) -> None:
-        """Write data to JSONL file."""
-        # Ensure directory exists
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+        limit: int = 20
+    ) -> list[BatchStatusResponse]:
+        """
+        List recent batches.
 
-        if aiofiles:
-            # Use async file operations if available
-            async with aiofiles.open(file_path, "w") as f:
-                for item in data:
-                    await f.write(json.dumps(item) + "\n")
-        else:
-            # Fallback to synchronous write
-            with open(file_path, "w") as f:
-                for item in data:
-                    f.write(json.dumps(item) + "\n")
+        vLLM supports listing batches with pagination.
+        """
+        batches_page = await self.async_client.batches.list(limit=limit)
 
-    async def _read_jsonl(
-        self,
-        file_path: str
-    ) -> list[dict[str, Any]]:
-        """Read JSONL file."""
-        if aiofiles:
-            async with aiofiles.open(file_path, "r") as f:
-                content = await f.read()
-                lines = content.strip().split("\n")
-                return [json.loads(line) for line in lines if line.strip()]
-        else:
-            with open(file_path, "r") as f:
-                lines = f.read().strip().split("\n")
-                return [json.loads(line) for line in lines if line.strip()]
+        results = []
+        for batch in batches_page.data:
+            # Convert each batch to BatchStatusResponse
+            status_map = {
+                "validating": BatchStatus.VALIDATING,
+                "failed": BatchStatus.FAILED,
+                "in_progress": BatchStatus.IN_PROGRESS,
+                "finalizing": BatchStatus.IN_PROGRESS,
+                "completed": BatchStatus.COMPLETED,
+                "expired": BatchStatus.EXPIRED,
+                "cancelling": BatchStatus.IN_PROGRESS,
+                "cancelled": BatchStatus.CANCELLED,
+            }
+
+            unified_status = status_map.get(batch.status, BatchStatus.IN_PROGRESS)
+
+            request_counts = RequestCounts(
+                total=batch.request_counts.total,
+                processing=batch.request_counts.total -
+                          batch.request_counts.completed -
+                          batch.request_counts.failed,
+                succeeded=batch.request_counts.completed,
+                errored=batch.request_counts.failed,
+                cancelled=0,
+                expired=0
+            )
+
+            created_at = datetime.fromtimestamp(batch.created_at).isoformat()
+            completed_at = (
+                datetime.fromtimestamp(batch.completed_at).isoformat()
+                if batch.completed_at else None
+            )
+            expires_at = (
+                datetime.fromtimestamp(batch.expires_at).isoformat()
+                if batch.expires_at else None
+            )
+
+            status_response = BatchStatusResponse(
+                batch_id=batch.id,
+                provider="vllm",
+                status=unified_status,
+                request_counts=request_counts,
+                created_at=created_at,
+                completed_at=completed_at,
+                expires_at=expires_at,
+                provider_data={
+                    "input_file_id": batch.input_file_id,
+                    "output_file_id": batch.output_file_id,
+                    "error_file_id": batch.error_file_id,
+                    "raw_status": batch.status
+                }
+            )
+
+            results.append(status_response)
+
+        return results
