@@ -1,13 +1,13 @@
 """Abstract base class defining provider interface."""
 
 from abc import ABC, abstractmethod
-from typing import Optional, Any, AsyncIterator
+from typing import Optional, Any
 from pathlib import Path
 import json
 import asyncio
 import aiofiles
 from .requests import UnifiedRequest, UnifiedBatchMetadata
-from .responses import BatchStatusResponse, UnifiedResult
+from .output import BatchStatusResponse, UnifiedResult
 from .enums import Modality
 from .content import TextContent, ImageContent, DocumentContent, AudioContent
 from ..exceptions import UnsupportedModalityError

@@ -2,12 +2,11 @@
 
 from .base import BaseProvider
 from .config import GenerationConfig
-from .content import TextContent, ImageContent, DocumentContent, AudioContent
+from .content import TextContent, ImageContent, DocumentContent, AudioContent, MessageContent
 from .enums import BatchStatus, ResultStatus, Modality
 from .messages import UnifiedMessage
 from .requests import UnifiedRequest, UnifiedBatchMetadata
-from .responses import BatchStatusResponse, UnifiedResult, RequestCounts
-from .types import MessageContent, SystemPrompt
+from .output import BatchStatusResponse, UnifiedResult, RequestCounts, OutputPaths
 
 __all__ = [
     # Base class
@@ -19,6 +18,7 @@ __all__ = [
     "ImageContent",
     "DocumentContent",
     "AudioContent",
+    "MessageContent",
     # Enums
     "BatchStatus",
     "ResultStatus",
@@ -32,7 +32,5 @@ __all__ = [
     "BatchStatusResponse",
     "UnifiedResult",
     "RequestCounts",
-    # Type aliases
-    "MessageContent",
-    "SystemPrompt",
+    "OutputPaths"
 ]

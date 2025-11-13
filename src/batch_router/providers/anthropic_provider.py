@@ -3,13 +3,13 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, Optional
 import anthropic
 import aiofiles
 
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
-from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
+from ..core.output import BatchStatusResponse, UnifiedResult, RequestCounts
 from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent
 
@@ -353,13 +353,12 @@ class AnthropicProvider(BaseProvider):
             else:
                 status = BatchStatus.COMPLETED
         elif processing_status == "canceling":
-            status = BatchStatus.IN_PROGRESS  # Still processing cancellation
+            status = BatchStatus.IN_PROGRESS
         elif processing_status == "canceled":
             status = BatchStatus.CANCELLED
         else:
             status = BatchStatus.IN_PROGRESS
 
-        # Build request counts
         counts_data = message_batch.request_counts
         request_counts = RequestCounts(
             total=counts_data.processing + counts_data.succeeded + counts_data.errored + counts_data.canceled + counts_data.expired,
@@ -370,7 +369,6 @@ class AnthropicProvider(BaseProvider):
             expired=counts_data.expired
         )
 
-        # Build response
         return BatchStatusResponse(
             batch_id=batch_id,
             provider="anthropic",
@@ -409,92 +407,7 @@ class AnthropicProvider(BaseProvider):
         Raises:
             Exception: If batch not complete or results unavailable
         """
-        # Check batch status first
-        status = await self.get_status(batch_id)
-        if not status.is_complete():
-            raise Exception(
-                f"Batch {batch_id} is not complete yet. "
-                f"Status: {status.status.value}"
-            )
-
-        # Get results URL
-        results_url = status.provider_data.get("results_url")
-        if not results_url:
-            raise Exception(f"No results URL available for batch {batch_id}")
-
-        # Get results from Anthropic
-        try:
-            raw_results = []
-            for result in self.client.messages.batches.results(batch_id):
-                # Convert to dict for storage
-                result_dict = {
-                    "custom_id": result.custom_id,
-                    "result": {}
-                }
-
-                # Handle different result types
-                if hasattr(result.result, 'type'):
-                    result_dict["result"]["type"] = result.result.type
-
-                    if result.result.type == "succeeded":
-                        # Extract message
-                        message = result.result.message
-                        result_dict["result"]["message"] = {
-                            "id": message.id,
-                            "type": message.type,
-                            "role": message.role,
-                            "model": message.model,
-                            "content": [
-                                {"type": block.type, "text": block.text if hasattr(block, "text") else ""}
-                                for block in message.content
-                            ],
-                            "stop_reason": message.stop_reason,
-                            "stop_sequence": message.stop_sequence,
-                            "usage": {
-                                "input_tokens": message.usage.input_tokens,
-                                "output_tokens": message.usage.output_tokens
-                            }
-                        }
-                    elif result.result.type == "errored":
-                        # Extract error
-                        error = result.result.error
-                        result_dict["result"]["error"] = {
-                            "type": error.type,
-                            "message": error.message if hasattr(error, "message") else str(error)
-                        }
-
-                raw_results.append(result_dict)
-
-            # Load batch metadata for consistent file naming
-            custom_name, model = self._load_batch_metadata(batch_id)
-
-            # Save raw results
-            output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
-            self._write_jsonl_sync(output_path, raw_results)
-
-            # Convert to unified format
-            unified_results = self._convert_from_provider_format(raw_results)
-
-            # Save unified results
-            results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
-            self._write_jsonl_sync(
-                results_path,
-                [
-                    {
-                        "custom_id": r.custom_id,
-                        "status": r.status.value,
-                        "response": r.response,
-                        "error": r.error
-                    }
-                    for r in unified_results
-                ]
-            )
-
-            # Return all results
-            return unified_results
-
-        except Exception as e:
-            raise Exception(f"Failed to retrieve batch results: {str(e)}") from e
+        
 
     async def cancel_batch(
         self,
