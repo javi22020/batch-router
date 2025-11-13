@@ -437,9 +437,6 @@ class vLLMProvider(BaseProvider):
         custom_name = batch.name
         model = batch.requests[0].model if batch.requests else None
 
-        # Save metadata for later use in get_results
-        self._save_batch_metadata(batch_id, custom_name, model)
-
         # Convert to provider format
         provider_requests = self._convert_to_provider_format(batch.requests)
 

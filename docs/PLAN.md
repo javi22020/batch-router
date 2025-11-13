@@ -685,7 +685,7 @@ class BaseProvider(ABC):
 
 ## Utilities
 
-### File: `utils/file_manager.py`
+### File: `utilities/file_manager.py`
 
 **Purpose:** JSONL file operations and directory management.
 
@@ -764,7 +764,7 @@ class FileManager:
 
 ---
 
-### File: `utils/validation.py`
+### File: `utilities/validation.py`
 
 **Purpose:** Request validation utilities.
 
@@ -818,7 +818,7 @@ def validate_batch_size(
 
 ---
 
-### File: `utils/logging.py`
+### File: `utilities/logging.py`
 
 **Purpose:** Structured logging configuration.
 
@@ -1464,7 +1464,7 @@ async def send_batch(self, batch):
 ### Unit Tests
 Create `tests/` directory with:
 - `test_core/`: Test all data models
-- `test_utils/`: Test file operations, validation
+- `test_utilities/`: Test file operations, validation
 - `test_router.py`: Test BatchRouter with mock providers
 
 ### Integration Tests
@@ -1499,7 +1499,7 @@ class MockProvider(BaseProvider):
 
 ### Phase 1: Core (No provider dependencies)
 1. ✅ All `core/` modules
-2. ✅ `utils/` modules
+2. ✅ `utilities/` modules
 3. ✅ `exceptions.py`
 4. ✅ `constants.py`
 5. ✅ `router.py`
@@ -1626,9 +1626,9 @@ To begin implementation:
    - `core/base.py`
    - `exceptions.py`
    - `constants.py`
-   - `utils/file_manager.py`
-   - `utils/validation.py`
-   - `utils/logging.py`
+   - `utilities/file_manager.py`
+   - `utilities/validation.py`
+   - `utilities/logging.py`
    - `router.py`
    - `__init__.py`
 

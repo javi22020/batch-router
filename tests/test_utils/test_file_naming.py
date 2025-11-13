@@ -2,6 +2,7 @@
 
 import pytest
 from pathlib import Path
+from batch_router.core.enums import Modality
 from batch_router.utilities import sanitize_filename_component
 from batch_router.core.base import BaseProvider
 from batch_router.core.requests import UnifiedRequest, UnifiedBatchMetadata
@@ -65,6 +66,8 @@ class TestSanitizeFilenameComponent:
 
 class MockProvider(BaseProvider):
     """Mock provider for testing file naming."""
+    
+    supported_modalities = {Modality.TEXT, Modality.IMAGE, Modality.AUDIO, Modality.DOCUMENT}
 
     def _validate_configuration(self):
         pass

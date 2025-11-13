@@ -313,7 +313,7 @@ class UnsupportedModalityError(BatchRouterError):
 
 ### 4.6 Utility Functions
 
-**File:** `src/batch_router/utils/audio.py` (new file)
+**File:** `src/batch_router/utilities/audio.py` (new file)
 
 ```python
 """Utilities for audio content handling."""
@@ -842,7 +842,7 @@ class MistralProvider(BaseProvider):
 
 ```
 src/batch_router/
-└── utils/
+└── utilities/
     └── audio.py                 # NEW: Audio utility functions
 ```
 
@@ -1133,7 +1133,7 @@ Users who want to add audio support:
 - [ ] Add `supported_modalities` to `BaseProvider`
 - [ ] Add `validate_request_modalities()` method
 - [ ] Add `UnsupportedModalityError` exception
-- [ ] Create `utils/audio.py` with helper functions
+- [ ] Create `utilities/audio.py` with helper functions
 
 ### Phase 2: Provider Updates
 - [ ] Update `OpenAIProvider` with audio support
