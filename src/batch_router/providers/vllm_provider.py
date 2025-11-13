@@ -1,6 +1,5 @@
 """vLLM Batch API provider implementation."""
 
-import json
 import os
 from datetime import datetime
 from typing import Optional, Any, AsyncIterator
@@ -27,7 +26,7 @@ class RunningTask(BaseModel):
     output_paths: OutputPaths
     created_at: datetime = Field(default_factory=datetime.now)
     completed_at: datetime | None = Field(default=None)
-    task: asyncio.Task
+    task: asyncio.Task = Field(default=None, exclude=True)
 
 class vLLMProvider(BaseProvider):
     """
@@ -92,6 +91,9 @@ class vLLMProvider(BaseProvider):
 
     def _generate_batch_id(self) -> str:
         return f"vllm_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    def _get_current_model_id(self) -> str:
+        return self.client.models.list().data[0].id
 
     def _convert_to_provider_format(
         self,
@@ -150,7 +152,7 @@ class vLLMProvider(BaseProvider):
 
             # Build request body
             body: dict[str, Any] = {
-                "model": request.model,
+                "model": self._get_current_model_id(),
                 "messages": messages
             }
             
@@ -404,20 +406,35 @@ class vLLMProvider(BaseProvider):
         self,
         task: asyncio.Task[tuple[str, list[dict[str, Any]], OutputPaths]]
     ):
-        batch_id, out_vllm, output_paths = task.result()
-        output_unified_file = output_paths.unified_output_jsonl
+        try:
+            batch_id, out_vllm, output_paths = task.result()
+            output_unified_file = output_paths.unified_output_jsonl
 
-        unified_results = self._convert_from_provider_format(out_vllm)
+            unified_results = self._convert_from_provider_format(out_vllm)
 
-        unified_dicts = [
-            unified_result.model_dump() for unified_result in unified_results
-        ]
+            unified_dicts = [
+                unified_result.model_dump() for unified_result in unified_results
+            ]
 
-        self._write_jsonl_sync(output_unified_file, unified_dicts)
-
-        self.running_tasks[batch_id].status = BatchStatus.COMPLETED
-        self.running_tasks[batch_id].output_paths = output_paths
-        self.running_tasks[batch_id].completed_at = datetime.now()
+            self._write_jsonl_sync(output_unified_file, unified_dicts)
+            self.running_tasks[batch_id].status = BatchStatus.COMPLETED
+            self.running_tasks[batch_id].output_paths = output_paths
+            self.running_tasks[batch_id].completed_at = datetime.now()
+            return
+        except FileNotFoundError:
+            self.running_tasks[batch_id].status = BatchStatus.FAILED
+            self.running_tasks[batch_id].completed_at = datetime.now()
+            self.running_tasks[batch_id].error = "File not found"
+            return
+        except asyncio.CancelledError:
+            self.running_tasks[batch_id].status = BatchStatus.CANCELLED
+            self.running_tasks[batch_id].completed_at = datetime.now()
+            return
+        except Exception as e:
+            self.running_tasks[batch_id].status = BatchStatus.FAILED
+            self.running_tasks[batch_id].completed_at = datetime.now()
+            self.running_tasks[batch_id].error = str(e)
+            return
 
     async def send_batch(
         self,
@@ -444,7 +461,7 @@ class vLLMProvider(BaseProvider):
 
         # Extract custom naming parameters
         custom_name = batch.name
-        model = batch.requests[0].model if batch.requests else None
+        model = self._get_current_model_id()
 
         # Save metadata for later use in get_results
         self._save_batch_metadata(batch_id, custom_name, model)
@@ -455,10 +472,10 @@ class vLLMProvider(BaseProvider):
 
         # Save unified format
         unified_data = [req.to_dict() for req in batch.requests]
-        self._write_jsonl_sync(str(unified_path), unified_data)
+        self._write_jsonl_sync(unified_path, unified_data)
 
         # Save provider format
-        self._write_jsonl_sync(str(provider_path), provider_requests)
+        self._write_jsonl_sync(provider_path, provider_requests)
 
         # Get results path
         output_provider_file = self.get_batch_file_path(batch_id, "output", custom_name, model)
@@ -516,7 +533,7 @@ class vLLMProvider(BaseProvider):
             provider="vllm",
             status=status,
             request_counts=RequestCounts(
-                total=1,
+                total=1
             ),
             created_at=running_task.created_at,
             completed_at=running_task.completed_at,
