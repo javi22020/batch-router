@@ -1,24 +1,19 @@
 """vLLM Batch API provider implementation."""
 
-import os
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
 from pathlib import Path
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field
 import asyncio
 
-from batch_router.core.messages import UnifiedMessage
-
-from openai import (
-    AsyncOpenAI as AsyncvLLM,
-    OpenAI as vLLM
-)
 
 from ..core.base import BaseProvider
+from ..core.messages import UnifiedMessage
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
 from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts, OutputPaths
 from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent, AudioContent
+
 
 class RunningTask(BaseModel):
     batch_id: str
@@ -26,7 +21,7 @@ class RunningTask(BaseModel):
     output_paths: OutputPaths
     created_at: datetime = Field(default_factory=datetime.now)
     completed_at: datetime | None = Field(default=None)
-    task: asyncio.Task = Field(default=None, exclude=True)
+    task: asyncio.Task | None = Field(default=None, exclude=True)
 
 
 class vLLMProvider(BaseProvider):
@@ -41,7 +36,7 @@ class vLLMProvider(BaseProvider):
     - 24-hour completion window
 
     Usage:
-        provider = vLLMAIProvider(api_key="sk-...")
+        provider = vLLMProvider(vllm_command="vllm")
         batch_id = await provider.send_batch(batch_metadata)
         status = await provider.get_status(batch_id)
         async for result in provider.get_results(batch_id):
@@ -53,8 +48,6 @@ class vLLMProvider(BaseProvider):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
         vllm_command: str = "vllm",
         **kwargs
     ):
@@ -62,39 +55,19 @@ class vLLMProvider(BaseProvider):
         Initialize vLLM provider.
 
         Args:
-            api_key: vLLM API key (or set VLLM_API_KEY env var)
-            base_url: Optional custom base URL for API
             vllm_command: Optional vLLM command
-            additional_args: Optional additional CLI arguments for run-batch command
             **kwargs: Additional configuration options
         """
-        # Get API key from parameter or environment
-        api_key = api_key or os.environ.get("VLLM_API_KEY") or "EMPTY"
-        base_url = base_url or os.environ.get("VLLM_BASE_URL") or "http://localhost:8005"
-        self.api_key = api_key
-        self.base_url = base_url
         self.vllm_command = vllm_command
         self.running_tasks: dict[str, RunningTask] = {}
 
-        super().__init__(name="vllm", api_key=api_key, **kwargs)
-
-        # Initialize both sync and async clients
-        client_kwargs = {
-            "api_key": api_key,
-            "base_url": base_url
-        }
-
-        self.client = vLLM(**client_kwargs)
-        self.async_client = AsyncvLLM(**client_kwargs)
+        super().__init__(name="vllm", **kwargs)
 
     def _validate_configuration(self) -> None:
         pass # No validation needed
 
     def _generate_batch_id(self) -> str:
         return f"vllm_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    
-    def _get_current_model_id(self) -> str:
-        return self.client.models.list().data[0].id
 
     def _convert_to_provider_format(
         self,
@@ -153,7 +126,7 @@ class vLLMProvider(BaseProvider):
 
             # Build request body
             body: dict[str, Any] = {
-                "model": self._get_current_model_id(),
+                "model": request.model,
                 "messages": messages
             }
             
@@ -380,7 +353,7 @@ class vLLMProvider(BaseProvider):
         batch_id: str,
         input_file: str | Path,
         output_paths: OutputPaths,
-        model: str | Path
+        model_id_or_path: str | Path
     ):
         output_file = output_paths.raw_output_batch_jsonl
         cmd = [
@@ -388,7 +361,7 @@ class vLLMProvider(BaseProvider):
                 "run-batch",
                 "-i", input_file if isinstance(input_file, str) else str(input_file),
                 "-o", output_file if isinstance(output_file, str) else str(output_file),
-                "--model", model if isinstance(model, str) else str(model)
+                "--model", model_id_or_path if isinstance(model_id_or_path, str) else str(model_id_or_path)
             ]
 
         process = await asyncio.create_subprocess_exec(
@@ -462,7 +435,7 @@ class vLLMProvider(BaseProvider):
 
         # Extract custom naming parameters
         custom_name = batch.name
-        model = self._get_current_model_id()
+        model = batch.requests[0].model
 
         # Save metadata for later use in get_results
         self._save_batch_metadata(batch_id, custom_name, model)
