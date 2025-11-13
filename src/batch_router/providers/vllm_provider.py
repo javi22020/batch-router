@@ -532,57 +532,23 @@ class vLLMAIProvider(BaseProvider):
 
         Steps:
         1. Check batch is complete
-        2. Download output file
-        3. Save raw output
-        4. Convert to unified format
-        5. Save unified results
-        6. Yield each result
+        2. Read output file
+        3. Convert to unified format
+        4. Yield each result
         """
-        # Get batch status
-        batch = await self.async_client.batches.retrieve(batch_id)
+        if batch_id not in self.running_tasks.keys():
+            raise ValueError(f"Batch {batch_id} not found in running tasks")
+        
+        running_task = self.running_tasks[batch_id]
+        status = running_task.status
 
-        if batch.status not in ["completed", "failed", "expired", "cancelled"]:
-            raise ValueError(
-                f"Batch {batch_id} is not complete. "
-                f"Current status: {batch.status}"
-            )
+        if status != BatchStatus.COMPLETED:
+            raise ValueError(f"Batch {batch_id} is not complete. Current status: {status}")
 
-        if not batch.output_file_id:
-            # No results available (all failed or expired)
-            return
+        provider_results = await self._read_jsonl(running_task.output_paths.raw_output_batch_jsonl)
 
-        # Download output file
-        file_response = await self.async_client.files.content(batch.output_file_id)
-        output_content = file_response.text
-
-        # Parse JSONL
-        output_lines = output_content.strip().split("\n")
-        provider_results = [json.loads(line) for line in output_lines if line.strip()]
-
-        # Load batch metadata for consistent file naming
-        custom_name, model = self._load_batch_metadata(batch_id)
-
-        # Save raw output
-        output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
-        await self._write_jsonl(str(output_path), provider_results)
-
-        # Convert to unified format
         unified_results = self._convert_from_provider_format(provider_results)
 
-        # Save unified results
-        results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
-        unified_dicts = [
-            {
-                "custom_id": r.custom_id,
-                "status": r.status.value,
-                "response": r.response,
-                "error": r.error
-            }
-            for r in unified_results
-        ]
-        await self._write_jsonl(str(results_path), unified_dicts)
-
-        # Yield each result
         for result in unified_results:
             yield result
 
@@ -597,10 +563,14 @@ class vLLMAIProvider(BaseProvider):
             True if cancelled, False if already complete
         """
         try:
-            batch = await self.async_client.batches.cancel(batch_id)
-            return batch.status in ["cancelling", "cancelled"]
+            if batch_id not in self.running_tasks.keys():
+                raise ValueError(f"Batch {batch_id} not found in running tasks")
+            
+            running_task = self.running_tasks[batch_id]
+            running_task.status = BatchStatus.CANCELLED
+            running_task.completed_at = datetime.now()
+            return True
         except Exception:
-            # Batch might already be complete
             return False
 
     async def list_batches(
@@ -608,62 +578,32 @@ class vLLMAIProvider(BaseProvider):
         limit: int = 20
     ) -> list[BatchStatusResponse]:
         """
-        List recent batches.
-
-        vLLM supports listing batches with pagination.
+        IMPORTANT: List batches in the current instance only.
         """
-        batches_page = await self.async_client.batches.list(limit=limit)
-
         results = []
-        for batch in batches_page.data:
-            # Convert each batch to BatchStatusResponse
-            status_map = {
-                "validating": BatchStatus.VALIDATING,
-                "failed": BatchStatus.FAILED,
-                "in_progress": BatchStatus.IN_PROGRESS,
-                "finalizing": BatchStatus.IN_PROGRESS,
-                "completed": BatchStatus.COMPLETED,
-                "expired": BatchStatus.EXPIRED,
-                "cancelling": BatchStatus.IN_PROGRESS,
-                "cancelled": BatchStatus.CANCELLED,
-            }
-
-            unified_status = status_map.get(batch.status, BatchStatus.IN_PROGRESS)
+        for batch_id in self.running_tasks.keys():
+            running_task = self.running_tasks[batch_id]
+            status = running_task.status
 
             request_counts = RequestCounts(
-                total=batch.request_counts.total,
-                processing=batch.request_counts.total -
-                          batch.request_counts.completed -
-                          batch.request_counts.failed,
-                succeeded=batch.request_counts.completed,
-                errored=batch.request_counts.failed,
-                cancelled=0,
-                expired=0
+                total=1
             )
 
-            created_at = datetime.fromtimestamp(batch.created_at).isoformat()
-            completed_at = (
-                datetime.fromtimestamp(batch.completed_at).isoformat()
-                if batch.completed_at else None
-            )
-            expires_at = (
-                datetime.fromtimestamp(batch.expires_at).isoformat()
-                if batch.expires_at else None
-            )
+            created_at = running_task.created_at
+            completed_at = running_task.completed_at
+            expires_at = None
 
             status_response = BatchStatusResponse(
-                batch_id=batch.id,
+                batch_id=batch_id,
                 provider="vllm",
-                status=unified_status,
+                status=status,
                 request_counts=request_counts,
                 created_at=created_at,
                 completed_at=completed_at,
                 expires_at=expires_at,
                 provider_data={
-                    "input_file_id": batch.input_file_id,
-                    "output_file_id": batch.output_file_id,
-                    "error_file_id": batch.error_file_id,
-                    "raw_status": batch.status
+                    "output_file_id": running_task.output_paths.raw_output_batch_jsonl,
+                    "unified_file_id": running_task.output_paths.unified_output_jsonl,
                 }
             )
 
