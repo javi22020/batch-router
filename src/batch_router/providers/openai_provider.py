@@ -391,7 +391,7 @@ class OpenAIProvider(BaseProvider):
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         # Write provider format JSONL to temp file
-        await self._write_jsonl(temp_file, provider_requests)
+        self._write_jsonl_sync(temp_file, provider_requests)
 
         # Upload file to OpenAI
         with open(temp_file, "rb") as f:
@@ -425,10 +425,10 @@ class OpenAIProvider(BaseProvider):
 
         # Save unified format
         unified_data = [req.to_dict() for req in batch.requests]
-        await self._write_jsonl(str(unified_path), unified_data)
+        self._write_jsonl_sync(str(unified_path), unified_data)
 
         # Save provider format
-        await self._write_jsonl(str(provider_path), provider_requests)
+        self._write_jsonl_sync(str(provider_path), provider_requests)
 
         # Clean up temp file
         try:
@@ -552,7 +552,7 @@ class OpenAIProvider(BaseProvider):
 
         # Save raw output
         output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
-        await self._write_jsonl(str(output_path), provider_results)
+        self._write_jsonl_sync(str(output_path), provider_results)
 
         # Convert to unified format
         unified_results = self._convert_from_provider_format(provider_results)
@@ -568,7 +568,7 @@ class OpenAIProvider(BaseProvider):
             }
             for r in unified_results
         ]
-        await self._write_jsonl(str(results_path), unified_dicts)
+        self._write_jsonl_sync(str(results_path), unified_dicts)
 
         # Yield each result
         for result in unified_results:

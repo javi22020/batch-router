@@ -304,14 +304,14 @@ class AnthropicProvider(BaseProvider):
         try:
             # Save unified format
             unified_path = self.get_batch_file_path(batch_id, "unified", custom_name, model)
-            await self._write_jsonl(
+            self._write_jsonl_sync(
                 unified_path,
                 [req.to_dict() for req in batch.requests]
             )
 
             # Save provider format
             provider_path = self.get_batch_file_path(batch_id, "provider", custom_name, model)
-            await self._write_jsonl(provider_path, anthropic_requests)
+            self._write_jsonl_sync(provider_path, anthropic_requests)
         except Exception as e:
             # Log but don't fail the batch
             print(f"Warning: Failed to save batch files: {str(e)}")
@@ -474,12 +474,12 @@ class AnthropicProvider(BaseProvider):
 
             # Save raw results
             output_path = self.get_batch_file_path(batch_id, "output", custom_name, model)
-            await self._write_jsonl(output_path, raw_results)
+            self._write_jsonl_sync(output_path, raw_results)
 
             # Save unified results
             unified_results = self._convert_from_provider_format(raw_results)
             results_path = self.get_batch_file_path(batch_id, "results", custom_name, model)
-            await self._write_jsonl(
+            self._write_jsonl_sync(
                 results_path,
                 [
                     {

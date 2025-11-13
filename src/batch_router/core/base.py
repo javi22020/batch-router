@@ -423,13 +423,25 @@ class BaseProvider(ABC):
             with open(file_path, "r", encoding="utf-8") as f:
                 lines = f.read().strip().split("\n")
                 return [json.loads(line) for line in lines if line.strip()]
+    
+    def _write_jsonl_sync(
+        self,
+        file_path: str | Path,
+        data: list[dict[str, Any]]
+    ):
+        """Write data to JSONL file. Sync version."""
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-    async def _write_jsonl(
+        text = "\n".join([json.dumps(item, ensure_ascii=False) for item in data])
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(text + "\n")
+
+    async def _write_jsonl_async(
         self,
         file_path: str | Path,
         data: list[dict[str, Any]]
     ) -> None:
-        """Write data to JSONL file."""
+        """Write data to JSONL file. Async version."""
         # Ensure directory exists
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 

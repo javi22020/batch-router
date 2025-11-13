@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from typing import Optional, Any, AsyncIterator
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import asyncio
 
 from batch_router.core.messages import UnifiedMessage
@@ -23,10 +23,11 @@ from ..core.content import TextContent, ImageContent, DocumentContent, AudioCont
 
 class RunningTask(BaseModel):
     batch_id: str
-    status: BatchStatus
+    status: BatchStatus = Field(default=BatchStatus.IN_PROGRESS)
     output_paths: OutputPaths
-    created_at: datetime = datetime.now()
-    completed_at: datetime | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    completed_at: datetime | None = Field(default=None)
+    task: asyncio.Task
 
 class vLLMProvider(BaseProvider):
     """
@@ -52,10 +53,9 @@ class vLLMProvider(BaseProvider):
 
     def __init__(
         self,
-        api_key: Optional[str],
-        base_url: Optional[str],
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
         vllm_command: str = "vllm",
-        additional_args: list[str] = [],
         **kwargs
     ):
         """
@@ -69,17 +69,20 @@ class vLLMProvider(BaseProvider):
             **kwargs: Additional configuration options
         """
         # Get API key from parameter or environment
-        self.api_key = api_key or os.environ.get("VLLM_API_KEY") or "EMPTY"
-        self.base_url = base_url or os.environ.get("VLLM_BASE_URL") or "http://localhost:8005"
+        api_key = api_key or os.environ.get("VLLM_API_KEY") or "EMPTY"
+        base_url = base_url or os.environ.get("VLLM_BASE_URL") or "http://localhost:8005"
+        self.api_key = api_key
+        self.base_url = base_url
         self.vllm_command = vllm_command
         self.running_tasks: dict[str, RunningTask] = {}
 
         super().__init__(name="vllm", api_key=api_key, **kwargs)
 
         # Initialize both sync and async clients
-        client_kwargs = {}
-        client_kwargs["api_key"] = api_key
-        client_kwargs["base_url"] = base_url
+        client_kwargs = {
+            "api_key": api_key,
+            "base_url": base_url
+        }
 
         self.client = vLLM(**client_kwargs)
         self.async_client = AsyncvLLM(**client_kwargs)
@@ -385,9 +388,6 @@ class vLLMProvider(BaseProvider):
                 "--model", model if isinstance(model, str) else str(model)
             ]
 
-        # Add any additional arguments
-        cmd.extend(self.additional_args)
-
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -400,7 +400,7 @@ class vLLMProvider(BaseProvider):
 
         return batch_id, out_vllm, output_paths
     
-    async def _vllm_done_callback(
+    def _vllm_done_callback(
         self,
         task: asyncio.Task[tuple[str, list[dict[str, Any]], OutputPaths]]
     ):
@@ -413,7 +413,7 @@ class vLLMProvider(BaseProvider):
             unified_result.model_dump() for unified_result in unified_results
         ]
 
-        await self._write_jsonl(output_unified_file, unified_dicts)
+        self._write_jsonl_sync(output_unified_file, unified_dicts)
 
         self.running_tasks[batch_id].status = BatchStatus.COMPLETED
         self.running_tasks[batch_id].output_paths = output_paths
@@ -455,10 +455,10 @@ class vLLMProvider(BaseProvider):
 
         # Save unified format
         unified_data = [req.to_dict() for req in batch.requests]
-        await self._write_jsonl(str(unified_path), unified_data)
+        self._write_jsonl_sync(str(unified_path), unified_data)
 
         # Save provider format
-        await self._write_jsonl(str(provider_path), provider_requests)
+        self._write_jsonl_sync(str(provider_path), provider_requests)
 
         # Get results path
         output_provider_file = self.get_batch_file_path(batch_id, "output", custom_name, model)
@@ -471,9 +471,9 @@ class vLLMProvider(BaseProvider):
 
         task = asyncio.create_task(
             self._run_vllm_batch(
+                batch_id,
                 provider_path,
-                output_provider_file,
-                output_unified_file,
+                output_paths,
                 model
             )
         )
@@ -482,7 +482,8 @@ class vLLMProvider(BaseProvider):
 
         self.running_tasks[batch_id] = RunningTask(
             batch_id=batch_id,
-            status=BatchStatus.IN_PROGRESS
+            output_paths=output_paths,
+            task=task
         )
         
         return batch_id
@@ -567,6 +568,7 @@ class vLLMProvider(BaseProvider):
                 raise ValueError(f"Batch {batch_id} not found in running tasks")
             
             running_task = self.running_tasks[batch_id]
+            await running_task.task.cancel()
             running_task.status = BatchStatus.CANCELLED
             running_task.completed_at = datetime.now()
             return True
