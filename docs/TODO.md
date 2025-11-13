@@ -1,0 +1,1 @@
+- [ ] Fix UnifiedResult structure to use a unified format for all providers, instead of a generic `response` field.
