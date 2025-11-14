@@ -1,35 +1,25 @@
 [project]
 name = "batch-router"
-version = "0.1.9"
+version = "0.2.0"
 description = "A Python package designed to facilitate batch LLM requests efficiently across multiple providers with a unified interface."
 readme = "README.md"
 authors = [
-    { name = "Javier Cervera", email = "90896750+javi22020@users.noreply.github.com" }
+    { name = "javi22020", email = "90896750+javi22020@users.noreply.github.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "aiofiles>=25.1.0",
-    "anthropic>=0.72.0",
-    "openai>=2.7.1"
+    "anthropic>=0.73.0",
+    "openai>=2.8.0",
 ]
 
 [project.optional-dependencies]
-google = [
-    "google-genai>=1.48.0"
-]
-
-mistral = [
-    "mistralai>=1.9.11"
-]
-
-all = [
-    "batch-router[google, mistral]"
+evals = [
+    "pandas>=2.3.3",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=1.2.0",
+  "pytest >=8.1.1,<9"
 ]
 
 [build-system]
