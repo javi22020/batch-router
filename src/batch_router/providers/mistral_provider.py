@@ -16,7 +16,7 @@ except ImportError:
 
 from ..core.base import BaseProvider
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
-from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts
+from ..core.output import BatchStatusResponse, UnifiedResult, RequestCounts
 from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent
 

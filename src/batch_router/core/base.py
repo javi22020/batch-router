@@ -405,7 +405,16 @@ class BaseProvider(ABC):
 
         return base_dir / filename
 
-    async def _read_jsonl(
+    def _read_jsonl_sync(
+        self,
+        file_path: str | Path
+    ) -> list[dict[str, Any]]:
+        """Read JSONL file."""
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        return [json.loads(line.strip()) for line in lines if line.strip()]
+    
+    async def _read_jsonl_async(
         self,
         file_path: str | Path
     ) -> list[dict[str, Any]]:

@@ -10,7 +10,7 @@ import asyncio
 from ..core.base import BaseProvider
 from ..core.messages import UnifiedMessage
 from ..core.requests import UnifiedRequest, UnifiedBatchMetadata
-from ..core.responses import BatchStatusResponse, UnifiedResult, RequestCounts, OutputPaths
+from ..core.output import BatchStatusResponse, UnifiedResult, RequestCounts, OutputPaths
 from ..core.enums import BatchStatus, ResultStatus, Modality
 from ..core.content import TextContent, ImageContent, DocumentContent, AudioContent
 
@@ -372,7 +372,7 @@ class vLLMProvider(BaseProvider):
 
         _ = await process.communicate()
 
-        out_vllm = await self._read_jsonl(output_file)
+        out_vllm = self._read_jsonl_sync(output_file)
 
         return batch_id, out_vllm, output_paths
     
@@ -537,7 +537,7 @@ class vLLMProvider(BaseProvider):
         if status != BatchStatus.COMPLETED:
             raise ValueError(f"Batch {batch_id} is not complete. Current status: {status}")
 
-        provider_results = await self._read_jsonl(running_task.output_paths.raw_output_batch_jsonl)
+        provider_results = self._read_jsonl_sync(running_task.output_paths.raw_output_batch_jsonl)
 
         unified_results = self._convert_from_provider_format(provider_results)
 
