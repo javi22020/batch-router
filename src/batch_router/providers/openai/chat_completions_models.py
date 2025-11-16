@@ -34,9 +34,11 @@ class Response(BaseModel):
     request_id: str
     body: ResponseBody
 
+
 class Error(BaseModel):
     code: Literal["batch_expired", "batch_cancelled", "request_timeout"]
     message: str
+
 
 class BatchOutputRequest(BaseModel):
     id: str

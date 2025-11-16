@@ -25,7 +25,7 @@ from batch_router.core.input.request import InputRequest
 from batch_router.core.output.request import OutputRequest
 from batch_router.core.base.request import InferenceParams
 from batch_router.providers.base.batch_provider import BaseBatchProvider
-from batch_router.providers.openai.chat_completions import BatchOutputRequest
+from batch_router.providers.openai.chat_completions_models import BatchOutputRequest
 from logging import getLogger
 import os
 
@@ -208,36 +208,41 @@ class OpenAIProvider(BaseBatchProvider):
 
     def send_batch(self, input_batch: InputBatch) -> str:
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
+        logger.info(f"Converted OpenAI input batch to file path: {input_file_path}")
         with open(input_file_path, "rb") as input_file:
             file_response = self.client.files.create(
                 file=input_file,
                 purpose="batch"
             )
         input_file_id = file_response.id
+        logger.info(f"Uploaded OpenAI input file to ID: {input_file_id}")
         batch_response = self.client.batches.create(
             completion_window="24h",
             endpoint="/v1/chat/completions",
             input_file_id=input_file_id
         )
         batch_id = batch_response.id
+        logger.info(f"Created OpenAI batch with ID: {batch_id}")
         return batch_id
     
     def poll_status(self, batch_id: str) -> BatchStatus:
         batch = self.client.batches.retrieve(batch_id)
         if batch.status in ["validating"]:
-            return BatchStatus.PENDING
+            current_status = BatchStatus.PENDING
         elif batch.status in ["in_progress", "finalizing"]:
-            return BatchStatus.RUNNING
+            current_status = BatchStatus.RUNNING
         elif batch.status in ["cancelling", "cancelled"]:
-            return BatchStatus.CANCELLED
+            current_status = BatchStatus.CANCELLED
         elif batch.status in ["failed"]:
-            return BatchStatus.FAILED
+            current_status = BatchStatus.FAILED
         elif batch.status in ["completed"]:
-            return BatchStatus.COMPLETED
+            current_status = BatchStatus.COMPLETED
         elif batch.status in ["expired"]:
-            return BatchStatus.EXPIRED
+            current_status = BatchStatus.EXPIRED
         else:
             raise ValueError(f"Invalid batch status: {batch.status}")
+        logger.info(f"OpenAI batch status: {current_status.value}")
+        return current_status
     
     def get_results(self, batch_id: str) -> OutputBatch:
         result_batch = self.client.batches.retrieve(batch_id)
