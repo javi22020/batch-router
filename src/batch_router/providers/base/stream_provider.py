@@ -9,3 +9,5 @@ class BaseStreamProvider(BaseProvider):
     def run_batch(self, input_batch: InputBatch) -> OutputBatch:
         """Run the batch inference. Convert InputBatch to provider format and run the batch, return the OutputBatch."""
         pass
+
+__all__ = ["BaseStreamProvider"]

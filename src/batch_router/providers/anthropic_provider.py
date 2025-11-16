@@ -14,7 +14,7 @@ from typing import Any
 
 from batch_router.core.output.message import OutputMessage
 from batch_router.providers.base.batch_provider import BaseBatchProvider
-from batch_router.core.base.provider import ProviderId, ProviderMode
+from batch_router.core.base.provider import ProviderId
 from batch_router.core.base.modality import Modality
 from batch_router.core.input.request import InputRequest
 from batch_router.core.output.request import OutputRequest
@@ -35,9 +35,7 @@ class AnthropicProvider(BaseBatchProvider):
     """A provider for Anthropic batch inference. To use this provider, you need to have a Anthropic API key."""
     def __init__(self, api_key: str) -> None:
         super().__init__(
-            provider_id=ProviderId.ANTHROPIC,
-            mode=ProviderMode.BATCH,
-            modalities=[Modality.TEXT, Modality.IMAGE]
+            provider_id=ProviderId.ANTHROPIC
         )
         self.client = Anthropic(api_key=api_key)
     
@@ -176,3 +174,5 @@ class AnthropicProvider(BaseBatchProvider):
         return OutputBatch(
             requests=batch_requests
         )
+
+__all__ = ["AnthropicProvider"]

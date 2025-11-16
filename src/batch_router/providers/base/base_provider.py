@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
 from batch_router.core.base.provider import ProviderId
-from batch_router.core.base.modality import Modality
 from batch_router.core.input.batch import InputBatch
 from batch_router.core.output.batch import OutputBatch
 from batch_router.core.base.request import InferenceParams
@@ -18,12 +17,10 @@ class BaseProvider(ABC):
     """A base class for all providers. Use `BaseBatchProvider` for batch providers and `BaseStreamProvider` for stream providers."""
     provider_id: ProviderId
     mode: ProviderMode
-    modalities: list[Modality]
 
-    def __init__(self, provider_id: ProviderId, mode: ProviderMode, modalities: list[Modality]) -> None:
+    def __init__(self, provider_id: ProviderId, mode: ProviderMode) -> None:
         self.provider_id = provider_id
         self.mode = mode
-        self.modalities = modalities
     
     @abstractmethod
     def input_message_role_to_provider(self, role: InputMessageRole) -> str:
@@ -79,3 +76,5 @@ class BaseProvider(ABC):
     def convert_output_batch_from_provider_to_unified(self, batch: Any) -> OutputBatch:
         """Convert output batch from provider to unified format."""
         pass
+
+__all__ = ["BaseProvider"]

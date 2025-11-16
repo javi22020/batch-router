@@ -9,6 +9,7 @@ class BatchStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    EXPIRED = "expired"
 
 class BatchConfig(BaseModel):
     name: str = Field(description="The name of the batch.")
