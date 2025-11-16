@@ -4,11 +4,14 @@ from batch_router.core.base.provider import ProviderId
 from batch_router.core.base.modality import Modality
 from batch_router.core.input.batch import InputBatch
 from batch_router.core.output.batch import OutputBatch
+from batch_router.core.base.request import InferenceParams
 from batch_router.core.input.message import InputMessage
 from batch_router.core.output.message import OutputMessage
 from batch_router.core.input.request import InputRequest
 from batch_router.core.output.request import OutputRequest
 from batch_router.core.base.content import MessageContent
+from batch_router.core.input.role import InputMessageRole
+from batch_router.core.output.role import OutputMessageRole
 from batch_router.core.base.provider import ProviderMode
 
 class BaseProvider(ABC):
@@ -21,6 +24,21 @@ class BaseProvider(ABC):
         self.provider_id = provider_id
         self.mode = mode
         self.modalities = modalities
+    
+    @abstractmethod
+    def input_message_role_to_provider(self, role: InputMessageRole) -> str:
+        """Convert input message role to provider role."""
+        pass
+
+    @abstractmethod
+    def output_message_role_to_unified(self, role: str) -> OutputMessageRole:
+        """Convert output message role to unified role."""
+        pass
+
+    @abstractmethod
+    def inference_params_to_provider(self, params: InferenceParams) -> Any:
+        """Convert request params to provider format."""
+        pass
 
     @abstractmethod
     def convert_input_content_from_unified_to_provider(self, content: MessageContent) -> Any:

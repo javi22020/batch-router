@@ -1,6 +1,22 @@
 from pydantic import BaseModel, Field
 from batch_router.core.input.message import InputMessage
+from batch_router.core.base.batch import InferenceParams
+from batch_router.core.base.provider import ProviderId
+
+class InputRequestConfig(BaseModel):
+    model_id: str = Field(description="The model to use for the request.")
+    provider_id: ProviderId = Field(description="The provider to use for the request.")
 
 class InputRequest(BaseModel):
     custom_id: str = Field(description="The custom ID of the request.")
     messages: list[InputMessage] = Field(description="The messages of the input request.")
+    params: InferenceParams = Field(description="The params of the request.")
+    config: InputRequestConfig = Field(description="The config of the request.")
+
+    def with_config(self, config: InputRequestConfig) -> "InputRequest":
+        return InputRequest(
+            custom_id=self.custom_id,
+            messages=self.messages,
+            params=self.params,
+            config=config
+        )
