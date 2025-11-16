@@ -1,9 +1,18 @@
 from openai import OpenAI
+from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.chat.chat_completion_content_part_param import ChatCompletionContentPartParam
 import tempfile
 from typing import Any
 import json
+import requests
+import base64
 from batch_router.core.base.batch import BatchStatus
-from batch_router.core.base.content import MessageContent
+from batch_router.core.base.content import (
+    MessageContent,
+    TextContent,
+    ImageContent,
+    AudioContent
+)
 from batch_router.core.base.modality import Modality
 from batch_router.core.base.provider import ProviderId
 from batch_router.core.input.role import InputMessageRole
@@ -16,7 +25,11 @@ from batch_router.core.input.request import InputRequest
 from batch_router.core.output.request import OutputRequest
 from batch_router.core.base.request import InferenceParams
 from batch_router.providers.base.batch_provider import BaseBatchProvider
+from batch_router.providers.openai.chat_completions import BatchOutputRequest
+from logging import getLogger
 import os
+
+logger = getLogger(__name__)
 
 class OpenAIProvider(BaseBatchProvider):
     """A provider for OpenAI batch inference. To use this provider, you need to have a OpenAI API key."""
@@ -72,6 +85,21 @@ class OpenAIProvider(BaseBatchProvider):
         else:
             raise ValueError(f"Unsupported input content modality: {content.modality}")
     
+    def convert_output_content_from_provider_to_unified(self, content: ChatCompletionContentPartParam) -> MessageContent:
+        if content["type"] == "text":
+            text = content["text"]
+            return TextContent(text=text)
+        elif content["type"] == "image_url":
+            url = content["image_url"]["url"]
+            response = requests.get(url)
+            image_base64 = base64.b64encode(response.content).decode("utf-8")
+            return ImageContent(image_base64=image_base64)
+        elif content["type"] == "input_audio":
+            audio_base64 = content["input_audio"]["data"]
+            return AudioContent(audio_base64=audio_base64)
+        else:
+            raise ValueError(f"Unsupported output content type: {content['type']}")
+    
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> dict[str, Any]:
         return {
             "role": self.input_message_role_to_provider(message.role),
@@ -80,6 +108,15 @@ class OpenAIProvider(BaseBatchProvider):
                 for content in message.contents
             ]
         }
+    
+    def convert_output_message_from_provider_to_unified(self, message: ChatCompletionMessage) -> OutputMessage:
+        return OutputMessage(
+            role=self.output_message_role_to_unified(message.role),
+            contents=[
+                self.convert_output_content_from_provider_to_unified(content)
+                for content in message.content
+            ]
+        )
 
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> dict[str, Any]:
         messages = [
@@ -110,8 +147,30 @@ class OpenAIProvider(BaseBatchProvider):
             }
         }
     
-    def convert_output_request_from_provider_to_unified(self, request: dict[str, Any]) -> OutputRequest:
-        custom_id = request["custom_id"]
+    def convert_output_request_from_provider_to_unified(self, request: BatchOutputRequest) -> OutputRequest:
+        custom_id = request.custom_id
+        if request.error is not None:
+            error_template = "This request failed with the following error: {error.code} - {error.message}"
+            error_message = error_template.format(error=request.error)
+            return OutputRequest(
+                custom_id=custom_id,
+                messages=[],
+                success=False,
+                error_message=error_message
+            )
+        else:
+            message: str = request.response.body.choices[0].message.content
+            return OutputRequest(
+                custom_id=custom_id,
+                messages=[
+                    OutputMessage(
+                        role=OutputMessageRole.ASSISTANT,
+                        contents=[
+                            TextContent(text=message)
+                        ]
+                    )
+                ]
+            )
     
     def convert_input_batch_from_unified_to_provider(self, batch: InputBatch) -> str:
         """OpenAI needs to upload a file to the API for batch inference, so this method returns the path of the created input file."""
@@ -138,7 +197,14 @@ class OpenAIProvider(BaseBatchProvider):
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
         """OpenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
         lines = [line.strip() for line in batch.splitlines() if line.strip()]
-        requests = [json.loads(line) for line in lines]
+        responses = [BatchOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
+        output_batch = OutputBatch(
+            requests=[
+                self.convert_output_request_from_provider_to_unified(response)
+                for response in responses
+            ]
+        )
+        return output_batch
 
     def send_batch(self, input_batch: InputBatch) -> str:
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
@@ -186,4 +252,7 @@ class OpenAIProvider(BaseBatchProvider):
         ) as temp_file:
             temp_file.write(output_file.content)
             file_path = temp_file.name
-        output_file.text
+        logger.info(f"OpenAI output file path: {file_path}")
+        output_file_text = output_file.text
+        output_batch = self.convert_output_batch_from_provider_to_unified(output_file_text)
+        return output_batch
