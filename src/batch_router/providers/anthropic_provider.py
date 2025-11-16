@@ -26,7 +26,7 @@ from batch_router.core.base.batch import BatchStatus
 from batch_router.core.base.content import (
     MessageContent,
     TextContent,
-    ImageContent
+    ThinkingContent
 )
 from batch_router.core.input.batch import InputBatch
 from batch_router.core.output.batch import OutputBatch
@@ -79,9 +79,9 @@ class AnthropicProvider(BaseBatchProvider):
         
     def convert_output_content_from_provider_to_unified(self, content: TextBlock | ThinkingBlock) -> MessageContent:
         if content.type == "text":
-            pass
+            return TextContent(text=content.text)
         elif content.type == "thinking":
-            pass
+            return ThinkingContent(thinking=content.thinking)
 
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> MessageParam:
         return MessageParam(
