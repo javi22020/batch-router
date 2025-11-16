@@ -31,7 +31,7 @@ import os
 
 logger = getLogger(__name__)
 
-class OpenAIProvider(BaseBatchProvider):
+class OpenAIChatProvider(BaseBatchProvider):
     """A provider for OpenAI batch inference. To use this provider, you need to have a OpenAI API key."""
     def __init__(self, api_key: str | None = None) -> None:
         super().__init__(
