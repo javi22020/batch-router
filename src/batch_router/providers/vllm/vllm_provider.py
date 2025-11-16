@@ -83,6 +83,9 @@ class vLLMProvider(BaseBatchProvider):
         else:
             raise ValueError(f"Unsupported input content modality: {content.modality}")
     
+    def convert_output_content_from_provider_to_unified(self, content: Any) -> MessageContent:
+        raise NotImplementedError("vLLM does not support output content conversion.")
+    
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> dict[str, Any]:
         return {
             "role": self.input_message_role_to_provider(message.role),
@@ -91,6 +94,9 @@ class vLLMProvider(BaseBatchProvider):
                 for content in message.contents
             ]
         }
+    
+    def convert_output_message_from_provider_to_unified(self, message: Any) -> OutputMessage:
+        raise NotImplementedError("vLLM does not support output message conversion.")
 
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> dict[str, Any]:
         messages = [
