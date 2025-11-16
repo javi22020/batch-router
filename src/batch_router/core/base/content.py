@@ -4,14 +4,14 @@ from batch_router.core.base.modality import Modality
 
 class TextContent(BaseModel):
     modality: Literal[Modality.TEXT]
-    content: str
+    text: str
 
 class ImageContent(BaseModel):
     modality: Literal[Modality.IMAGE]
-    content: str # base64-encoded image
+    image_base64: str # base64-encoded image
 
 class AudioContent(BaseModel):
     modality: Literal[Modality.AUDIO]
-    content: str # base64-encoded audio
+    audio_base64: str # base64-encoded audio
 
 MessageContent = TextContent | ImageContent | AudioContent
