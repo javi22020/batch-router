@@ -1,6 +1,7 @@
 from enum import Enum
 
 class InputMessageRole(Enum):
-    """Role of a message in a batch input. Only ASSISTANT and TOOL are supported, as the USER messages are not in the input."""
-    ASSISTANT = "assistant"
+    """Role of a message in a batch input. SYSTEM role is not supported, it must be in the request level."""
+    USER = "user"
     TOOL = "tool"
+    ASSISTANT = "assistant"
