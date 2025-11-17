@@ -178,7 +178,7 @@ class vLLMProvider(BaseBatchProvider):
         )
         return output_batch
     
-    def vllm_run_batch(self, input_file_path: str, output_file_path: str) -> str:
+    def vllm_run_batch(self, input_file_path: str, output_file_path: str) -> int:
         command = [
             "vllm",
             "run-batch",
