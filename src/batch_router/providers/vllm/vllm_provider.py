@@ -213,11 +213,17 @@ class vLLMProvider(BaseBatchProvider):
     
     def poll_status(self, batch_id: str) -> BatchStatus:
         pid, _ = self.read_vllm_batch_id(batch_id)
-        process = psutil.Process(pid)
-        is_running = process.is_running()
-        if is_running:
-            return BatchStatus.RUNNING
-        else:
+        try:
+            process = psutil.Process(pid)
+            status = process.status()
+            if status in [psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD]:
+                return BatchStatus.COMPLETED
+            if process.is_running():
+                return BatchStatus.RUNNING
+            else:
+                return BatchStatus.COMPLETED
+        except psutil.NoSuchProcess:
+            logger.info(f"vLLM process {pid} no longer exists, marking as completed")
             return BatchStatus.COMPLETED
     
     def get_results(self, batch_id: str) -> OutputBatch:
