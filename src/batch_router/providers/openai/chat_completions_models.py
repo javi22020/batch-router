@@ -41,6 +41,13 @@ class Error(BaseModel):
 
 
 class BatchOutputRequest(BaseModel):
+    """A batch output request from OpenAI (each line in the JSONL file returned by the API).
+    Attributes:
+        id: The ID of the request.
+        custom_id: The custom ID of the request.
+        response: The response from the request.
+        error: The error from the request.
+    """
     id: str
     custom_id: str
     response: Response
