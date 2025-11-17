@@ -1,7 +1,7 @@
 import time
 from batch_router.core.base import BatchConfig, BatchStatus, ProviderId
 from batch_router.providers import vLLMProvider
-from batch_router.core.input import InputBatch, InputRequest, InputMessage, InputMessageRole, InputRequestConfig
+from batch_router.core.input import InputBatch, InputRequest, InputMessage, InputMessageRole
 from batch_router.core.base import TextContent, InferenceParams
 
 provider = vLLMProvider(model_path="./gemma_3_270m")
