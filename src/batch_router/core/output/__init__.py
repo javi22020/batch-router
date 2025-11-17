@@ -1,3 +1,5 @@
+"""Output classes for batch and stream inference."""
+
 from .batch import OutputBatch
 from .message import OutputMessage
 from .request import OutputRequest
