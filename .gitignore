@@ -14,6 +14,7 @@ wheels/
 
 # Batch router generated files
 .batch_router/
+*.jsonl
 
 # Pytest
 .pytest_cache/
