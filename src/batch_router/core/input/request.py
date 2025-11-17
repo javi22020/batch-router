@@ -35,7 +35,7 @@ class InputRequest(BaseModel):
         Args:
             params: The InferenceParams to use for the request.
         Returns:
-            The InputRequest with the set params.
+            The InputRequest with the configured params.
         """
         return InputRequest(
             custom_id=self.custom_id,
