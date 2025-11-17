@@ -182,12 +182,12 @@ class vLLMProvider(BaseBatchProvider):
         command = [
             "vllm",
             "run-batch",
-            "--model",
-            self.model_path,
-            "--input",
+            "-i",
             input_file_path,
-            "--output",
-            output_file_path
+            "-o",
+            output_file_path,
+            "--model",
+            self.model_path
         ]
         process = sp.Popen(command, stdout=sp.PIPE, stderr=sp.PIPE)
         return process.pid
