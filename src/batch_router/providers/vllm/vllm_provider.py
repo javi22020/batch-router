@@ -193,7 +193,7 @@ class vLLMProvider(BaseBatchProvider):
         return process.pid
     
     def read_vllm_batch_id(self, batch_id: str) -> tuple[int, str]:
-        pattern = r"temp_vllm_output_(\d+)_path_(\w+)"
+        pattern = r'vllm_pid_(\d+)_path_temp_(.+)'
         match = re.search(pattern, batch_id)
         if match:
             pid = match.group(1)
