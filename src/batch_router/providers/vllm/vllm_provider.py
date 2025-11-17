@@ -7,9 +7,7 @@ import re
 from batch_router.core.base.batch import BatchStatus
 from batch_router.core.base.content import (
     MessageContent,
-    TextContent,
-    ImageContent,
-    AudioContent
+    TextContent
 )
 from datetime import datetime as dt
 from batch_router.core.base.modality import Modality
@@ -32,11 +30,17 @@ logger = getLogger(__name__)
 
 class vLLMProvider(BaseBatchProvider):
     """A provider for vLLM local batch inference. You need to have vLLM installed."""
-    def __init__(self, model_path: str) -> None:
+    def __init__(self, model_path: str, run_batch_kwargs: dict[str, Any] | None = None) -> None:
+        """Initialize the vLLMProvider.
+        Args:
+            model_path: The path to the vLLM model.
+            run_batch_kwargs: Additional kwargs to pass to the vLLM run-batch command (-i, -o and --model are already set by the provider).
+        """
         super().__init__(
             provider_id=ProviderId.VLLM
         )
         self.model_path = model_path
+        self.run_batch_kwargs = run_batch_kwargs
     
     def input_message_role_to_provider(self, role: InputMessageRole) -> str:
         if role == InputMessageRole.USER:
@@ -140,14 +144,14 @@ class vLLMProvider(BaseBatchProvider):
                 error_message=error_message
             )
         else:
-            message: str = request.response.body.choices[0].message.content
+            message = request.response.body.choices[0].message
             return OutputRequest(
                 custom_id=custom_id,
                 messages=[
                     OutputMessage(
-                        role=OutputMessageRole.ASSISTANT,
+                        role=self.output_message_role_to_unified(message.role),
                         contents=[
-                            TextContent(text=message)
+                            TextContent(text=message.content)
                         ]
                     )
                 ]
@@ -180,6 +184,13 @@ class vLLMProvider(BaseBatchProvider):
         return output_batch
     
     def vllm_run_batch(self, input_file_path: str, output_file_path: str) -> int:
+        """Run the vLLM run-batch command.
+        Args:
+            input_file_path: The path to the input file.
+            output_file_path: The path to the output file.
+        Returns:
+            The PID of the vLLM run-batch process.
+        """
         command = [
             "vllm",
             "run-batch",
@@ -190,10 +201,20 @@ class vLLMProvider(BaseBatchProvider):
             "--model",
             self.model_path
         ]
+        if self.run_batch_kwargs is not None:
+            for key, value in self.run_batch_kwargs.items():
+                if key not in ["-i", "-o", "--model"]:
+                    command.extend([key, str(value)])
         process = sp.Popen(command, stdout=sp.PIPE, stderr=sp.PIPE)
         return process.pid
     
     def read_vllm_batch_id(self, batch_id: str) -> tuple[int, str]:
+        """Read the vLLM batch ID and return the PID and output file path.
+        Args:
+            batch_id: The ID of the batch to read the ID of.
+        Returns:
+            The PID and output file path of the batch in a tuple.
+        """
         pattern = r'vllm_pid_(\d+)_path_(.+)'
         match = re.search(pattern, batch_id)
         if match:
