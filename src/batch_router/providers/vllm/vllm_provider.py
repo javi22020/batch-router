@@ -1,3 +1,4 @@
+import time
 from typing import Any
 import json
 import subprocess as sp
@@ -228,7 +229,13 @@ class vLLMProvider(BaseBatchProvider):
     
     def get_results(self, batch_id: str) -> OutputBatch:
         _, output_file_path = self.read_vllm_batch_id(batch_id)
-        with open(output_file_path, "r", encoding="utf-8") as output_file:
-            output_file_text = output_file.read()
+        for i in range(100):
+            if os.path.exists(output_file_path):
+                with open(output_file_path, "r", encoding="utf-8") as output_file:
+                    output_file_text = output_file.read()
+                    break
+            time.sleep(3)
+        else:
+            raise TimeoutError(f"vLLM output file {output_file_path} not found after 100 attempts, batch {batch_id} is still running")
         output_batch = self.convert_output_batch_from_provider_to_unified(output_file_text)
         return output_batch
