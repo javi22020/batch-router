@@ -19,8 +19,8 @@ class InputRequest(BaseModel):
     """
     custom_id: str = Field(description="The custom ID of the request.")
     messages: list[InputMessage] = Field(description="The messages of the input request.")
-    params: InferenceParams = Field(description="The params of the request.")
-    config: InputRequestConfig | None = Field(default=None, description="The config of the request. Can be created without a config, but will need to be set before sending the request.")
+    params: InferenceParams | None = Field(default=None, description="The params of the request. Can be created without it, but will need to be set before sending the request.")
+    config: InputRequestConfig | None = Field(default=None, description="The config of the request. Can be created without it, but will need to be set before sending the request.")
 
     def with_config(self, config: InputRequestConfig) -> "InputRequest":
         return InputRequest(
@@ -28,4 +28,18 @@ class InputRequest(BaseModel):
             messages=self.messages,
             params=self.params,
             config=config
+        )
+
+    def with_params(self, params: InferenceParams) -> "InputRequest":
+        """Set the params of the request.
+        Args:
+            params: The InferenceParams to use for the request.
+        Returns:
+            The InputRequest with the set params.
+        """
+        return InputRequest(
+            custom_id=self.custom_id,
+            messages=self.messages,
+            params=params,
+            config=self.config
         )
