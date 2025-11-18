@@ -17,6 +17,12 @@ class InputBatch(BaseModel):
         
         return InputBatch(requests=requests)
     
+    def __str__(self) -> str:
+        return f"InputBatch(requests={self.requests})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+    
     def save_to_jsonl(self, file_path: str) -> None:
         text = ""
         for request in self.requests:

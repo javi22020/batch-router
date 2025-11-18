@@ -10,3 +10,9 @@ class InferenceParams(BaseModel):
     temperature: float | None = Field(description="The temperature to use for the inference.", default=None)
     response_format: BaseModel | None = Field(description="The response format to use for the inference; provider must support structured outputs.", default=None)
     additional_params: dict[str, Any] = Field(description="Additional parameters to use for the inference.", default_factory=dict)
+
+    def __str__(self) -> str:
+        return f"InferenceParams(model_id={self.model_id}, provider_id={self.provider_id}, system_prompt={self.system_prompt}, max_output_tokens={self.max_output_tokens}, temperature={self.temperature}, response_format={self.response_format}, additional_params={self.additional_params})"
+    
+    def __repr__(self) -> str:
+        return self.__str__()

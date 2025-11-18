@@ -11,6 +11,12 @@ class InputRequest(BaseModel):
     messages: list[InputMessage] = Field(description="The messages of the input request.")
     params: InferenceParams | None = Field(default=None, description="The params of the request. Can be created without it for generic requests, but will need to be set before sending the request to a specific model and provider.")
 
+    def __str__(self) -> str:
+        return f"InputRequest(custom_id={self.custom_id}, messages={self.messages}, params={self.params})"
+    
+    def __repr__(self) -> str:
+        return self.__str__()
+    
     def with_params(self, params: InferenceParams) -> "InputRequest":
         """Set the params of the request.
         Args:

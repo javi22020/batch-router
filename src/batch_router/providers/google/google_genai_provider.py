@@ -40,7 +40,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
             provider_params["response_mime_type"] = "application/json"
             provider_params["response_json_schema"] = schema
         
-        provider_params = {k:v for k,v in provider_params.items() if v is not None}
+        provider_params = {k: v for k, v in provider_params.items() if v is not None}
 
         return types.GenerateContentConfig.model_validate(provider_params, extra="ignore")
     
@@ -169,7 +169,6 @@ class GoogleGenAIProvider(BaseBatchProvider):
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
         """Google GenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
         content = batch.strip()
-        print("CONTENT:\n\n" + content + "\n\n")
         lines = [line.strip() for line in content.splitlines() if line.strip()]
         responses = [GoogleGenAIOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
         requests = [

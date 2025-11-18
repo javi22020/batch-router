@@ -35,6 +35,8 @@ google_params = InferenceParams(
 
 google_genai_batch = input_batch.with_params(google_params)
 
+print(google_genai_batch)
+
 # You can also use the same input batch for multiple providers by configuring it with different models and providers.
 # openai_batch = input_batch.with_config(
 #     config=BatchConfig(
