@@ -1,12 +1,14 @@
 from google.genai import types, Client
-from batch_router.core.base import BatchStatus
+from batch_router.core.base import BatchStatus, ImageContent, TextContent, ThinkingContent
 from batch_router.core.base.provider import ProviderId
+from batch_router.core.output.message import OutputMessage
 from batch_router.core.output.batch import OutputBatch
 from batch_router.providers.base.batch_provider import BaseBatchProvider
 from batch_router.core.base.request import InferenceParams
 from batch_router.core.base.content import MessageContent, Modality
 from batch_router.core.input.message import InputMessage, InputMessageRole
 from batch_router.core.input.request import InputRequest
+from batch_router.core.output.request import OutputRequest
 from batch_router.utilities.mime_type import get_mime_type
 from batch_router.providers.google.google_genai_models import GoogleGenAIRequestBody, GoogleGenAIRequest
 from batch_router.core.input.batch import InputBatch
@@ -56,6 +58,17 @@ class GoogleGenAIProvider(BaseBatchProvider):
             return types.Part.from_bytes(data, mime_type=mime_type)
         else:
             raise ValueError(f"Unsupported input content modality: {content.modality}")
+        
+    def convert_output_content_from_provider_to_unified(self, content: types.Part) -> MessageContent:
+        if content.text is not None:
+            return TextContent(text=content.text)
+        elif content.thought is not None:
+            return ThinkingContent(thinking=content.thought)
+        elif image := content.as_image():
+            image_base64 = base64.b64encode(image.image_bytes).decode("utf-8")
+            return ImageContent(image_base64=image_base64)
+        else:
+            raise ValueError(f"Unsupported output content part: {content.model_dump_json(ensure_ascii=False)}")
     
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> types.Content:
         return types.Content(
@@ -64,6 +77,15 @@ class GoogleGenAIProvider(BaseBatchProvider):
                 for content in message.contents
             ],
             role=self.input_message_role_to_provider(message.role)
+        )
+    
+    def convert_output_message_from_provider_to_unified(self, message: types.Content) -> OutputMessage:
+        return OutputMessage(
+            role=self.output_message_role_to_unified(message.role),
+            contents=[
+                self.convert_output_content_from_provider_to_unified(part)
+                for part in message.parts
+            ]
         )
     
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> GoogleGenAIRequest:
@@ -81,6 +103,19 @@ class GoogleGenAIProvider(BaseBatchProvider):
                 generation_config=self.inference_params_to_provider(request.params)
             )
         )
+
+    def convert_output_request_from_provider_to_unified(self, request: types.GenerateContentResponse) -> OutputRequest:
+        custom_id = request.response_id
+        content = request.candidates[0].content
+        if content is None:
+            raise ValueError("Content was None.")
+        return OutputRequest(
+            custom_id=custom_id,
+            messages=[
+                self.convert_output_message_from_provider_to_unified(content)
+            ]
+        )
+
     
     def convert_input_batch_from_unified_to_provider(self, batch: InputBatch) -> str:
         """Google GenAI needs to upload a file to the API for batch inference, so this method returns the path of the created input file."""
@@ -102,7 +137,19 @@ class GoogleGenAIProvider(BaseBatchProvider):
         ) as temp_file:
             temp_file.write(jsonl_content)
             file_path = temp_file.name
+        
         return file_path
+
+    def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
+        """Google GenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
+        lines = [line.strip() for line in batch.splitlines() if line.strip()]
+        responses = [types.GenerateContentResponse.model_validate_json(line, extra="ignore") for line in lines]
+        output_batch = OutputBatch(
+            requests=[
+                self.convert_output_request_from_provider_to_unified(response)
+                for response in responses
+            ]
+        )
     
     def count_input_request_tokens(self, request: InputRequest) -> int:
         if request.params is None:
