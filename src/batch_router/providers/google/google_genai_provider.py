@@ -17,7 +17,9 @@ from batch_router.providers.google.google_genai_models import GoogleGenAIRequest
 import os
 import base64
 import tempfile
+import logging
 
+logger = logging.getLogger(__name__)
 
 class GoogleGenAIProvider(BaseBatchProvider):
     def __init__(self, api_key: str | None = None) -> None:
@@ -113,9 +115,26 @@ class GoogleGenAIProvider(BaseBatchProvider):
 
     def convert_output_request_from_provider_to_unified(self, request: types.GenerateContentResponse) -> OutputRequest:
         custom_id = request.response_id
-        content = request.candidates[0].content
+        try:
+            content = request.candidates[0].content
+        except Exception as e:
+            error_message = f"Error converting output request from provider to unified for request {custom_id}: {str(e)}"
+            logger.error(error_message)
+            return OutputRequest(
+                custom_id=custom_id,
+                messages=[],
+                success=False,
+                error_message=error_message
+            )
         if content is None:
-            raise ValueError("Content was None.")
+            error_message = f"Content was None for request {custom_id}"
+            logger.error(error_message)
+            return OutputRequest(
+                custom_id=custom_id,
+                messages=[],
+                success=False,
+                error_message=error_message
+            )
         return OutputRequest(
             custom_id=custom_id,
             messages=[
@@ -151,13 +170,17 @@ class GoogleGenAIProvider(BaseBatchProvider):
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
         """Google GenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
         lines = [line.strip() for line in batch.splitlines() if line.strip()]
+        print(lines)
         responses = [types.GenerateContentResponse.model_validate_json(line, extra="ignore") for line in lines]
+        requests = [
+            self.convert_output_request_from_provider_to_unified(response)
+            for response in responses
+        ]
+        requests = [request for request in requests if request is not None]
         output_batch = OutputBatch(
-            requests=[
-                self.convert_output_request_from_provider_to_unified(response)
-                for response in responses
-            ]
+            requests=requests
         )
+        return output_batch
     
     def count_input_request_tokens(self, request: InputRequest) -> int:
         if request.params is None:
@@ -174,6 +197,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
         total_tokens = response.total_tokens
         if total_tokens is None:
             raise ValueError("Response total tokens is None.")
+        
         return total_tokens
     
     def send_batch(self, input_batch: InputBatch) -> str:
@@ -222,7 +246,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
         if output is None:
             raise ValueError("Batch job output (BatchJob.dest) is None.")
         output_file_name = output.file_name
-        data = self.client.files.download(name=output_file_name)
+        data = self.client.files.download(file=output_file_name)
         with tempfile.NamedTemporaryFile(
             mode="wb",
             suffix=".jsonl",
@@ -232,6 +256,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
         ) as temp_file:
             temp_file.write(data)
             file_path = temp_file.name
-        output_batch = self.convert_output_batch_from_provider_to_unified(file_path)
+        file_content = open(file_path, "r", encoding="utf-8").read()
+        output_batch = self.convert_output_batch_from_provider_to_unified(file_content)
         
         return output_batch
