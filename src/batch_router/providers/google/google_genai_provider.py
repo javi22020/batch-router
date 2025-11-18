@@ -28,7 +28,6 @@ class GoogleGenAIProvider(BaseBatchProvider):
 
     def inference_params_to_provider(self, params: InferenceParams) -> types.GenerateContentConfig:
         provider_params = {
-            "system_instruction": params.system_prompt,
             "max_output_tokens": params.max_output_tokens,
             "temperature": params.temperature,
             **params.additional_params
@@ -37,6 +36,8 @@ class GoogleGenAIProvider(BaseBatchProvider):
             schema = params.response_format.model_json_schema()
             provider_params["response_mime_type"] = "application/json"
             provider_params["response_json_schema"] = schema
+        
+        provider_params = {k:v for k,v in provider_params.items() if v is not None}
 
         return types.GenerateContentConfig.model_validate(provider_params, extra="ignore")
     
@@ -106,7 +107,8 @@ class GoogleGenAIProvider(BaseBatchProvider):
                     for message in request.messages
                 ],
                 generation_config=self.inference_params_to_provider(request.params)
-            )
+            ),
+            system_instruction=request.params.system_prompt
         )
 
     def convert_output_request_from_provider_to_unified(self, request: types.GenerateContentResponse) -> OutputRequest:
@@ -142,6 +144,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
         ) as temp_file:
             temp_file.write(jsonl_content)
             file_path = temp_file.name
+        print(jsonl_content)
         
         return file_path
 
@@ -181,9 +184,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
         file = self.client.files.upload(
             file=input_file_path,
-            config={
-                "mime_type": "application/jsonl"
-            }
+            config=types.UploadFileConfig(mime_type="jsonl")
         )
         file_name = file.name
         batch_job = self.client.batches.create(

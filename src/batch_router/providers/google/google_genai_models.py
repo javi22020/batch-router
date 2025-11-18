@@ -8,3 +8,4 @@ class GoogleGenAIRequestBody(BaseModel):
 class GoogleGenAIRequest(BaseModel):
     key: str
     request: GoogleGenAIRequestBody
+    system_instruction: str | None
