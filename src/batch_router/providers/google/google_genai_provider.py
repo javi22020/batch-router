@@ -30,6 +30,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
 
     def inference_params_to_provider(self, params: InferenceParams) -> types.GenerateContentConfig:
         provider_params = {
+            "system_instruction": params.system_prompt,
             "max_output_tokens": params.max_output_tokens,
             "temperature": params.temperature,
             **params.additional_params
@@ -107,10 +108,9 @@ class GoogleGenAIProvider(BaseBatchProvider):
                 contents=[
                     self.convert_input_message_from_unified_to_provider(message)
                     for message in request.messages
-                ],
-                generation_config=self.inference_params_to_provider(request.params)
+                ]
             ),
-            system_instruction=request.params.system_prompt
+            config=self.inference_params_to_provider(request.params)
         )
 
     def convert_output_request_from_provider_to_unified(self, request: types.GenerateContentResponse) -> OutputRequest:
@@ -169,7 +169,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
 
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
         """Google GenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
-        lines = [line.strip() for line in batch.splitlines() if line.strip()]
+        lines = [line.strip() for line in batch.strip().splitlines() if line.strip()]
         print(lines)
         responses = [types.GenerateContentResponse.model_validate_json(line, extra="ignore") for line in lines]
         requests = [
