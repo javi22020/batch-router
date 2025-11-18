@@ -163,14 +163,14 @@ class GoogleGenAIProvider(BaseBatchProvider):
         ) as temp_file:
             temp_file.write(jsonl_content)
             file_path = temp_file.name
-        print(jsonl_content)
         
         return file_path
 
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
         """Google GenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
-        lines = [line.strip() for line in batch.strip().splitlines() if line.strip()]
-        print(lines)
+        content = batch.strip()
+        print("CONTENT:\n\n" + content + "\n\n")
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
         responses = [types.GenerateContentResponse.model_validate_json(line, extra="ignore") for line in lines]
         requests = [
             self.convert_output_request_from_provider_to_unified(response)
