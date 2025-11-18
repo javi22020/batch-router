@@ -59,6 +59,12 @@ class AnthropicProvider(BaseBatchProvider):
             "temperature": params.temperature,
             "system": params.system_prompt
         }
+        if params.response_format is not None:
+            schema = params.response_format.model_json_schema()
+            provider_params["output_format"] = {
+                "type": "json_schema",
+                "schema": schema
+            }
         provider_params = {k:v for k,v in provider_params.items() if v is not None}
         provider_params.update(params.additional_params)
         return provider_params
@@ -91,6 +97,10 @@ class AnthropicProvider(BaseBatchProvider):
         )
     
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> Request:
+        if request.params is None:
+            raise ValueError("Request params are required for Anthropic.")
+        if request.config is None:
+            raise ValueError("Request config is required for Anthropic.")
         return Request(
             custom_id=request.custom_id,
             params=MessageCreateParamsNonStreaming(

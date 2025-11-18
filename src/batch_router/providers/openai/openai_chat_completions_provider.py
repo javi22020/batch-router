@@ -51,6 +51,12 @@ class OpenAIChatProvider(BaseBatchProvider):
             "max_completion_tokens": params.max_output_tokens,
             "temperature": params.temperature
         }
+        if params.response_format is not None:
+            json_schema = params.response_format.model_json_schema()
+            provider_params["response_format"] = {
+                "type": "json_schema",
+                "json_schema": json_schema
+            }
         provider_params = {k:v for k,v in provider_params.items() if v is not None}
         provider_params.update(params.additional_params)
         return provider_params
@@ -120,6 +126,10 @@ class OpenAIChatProvider(BaseBatchProvider):
         )
 
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> dict[str, Any]:
+        if request.config is None:
+            raise ValueError("Request config is required for OpenAI chat completions.")
+        if request.params is None:
+            raise ValueError("Request params are required for OpenAI chat completions.")
         messages = [
             self.convert_input_message_from_unified_to_provider(message)
             for message in request.messages

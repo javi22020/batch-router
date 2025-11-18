@@ -5,6 +5,7 @@ from openai.types.responses.response_input_text_param import ResponseInputTextPa
 from openai.types.responses.response_input_image_param import ResponseInputImageParam
 from openai.types.responses.response_input_message_item import ResponseInputMessageItem
 from openai.types.responses.response_output_text import ResponseOutputText
+from openai.types.responses.response_reasoning_item import ResponseReasoningItem
 from batch_router.providers.base.batch_provider import BaseBatchProvider
 from batch_router.core.base.provider import ProviderId
 from batch_router.core.input.message import InputMessage
