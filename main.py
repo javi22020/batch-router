@@ -6,7 +6,7 @@ from batch_router.providers import GoogleGenAIProvider
 from batch_router.core.input import InputBatch, InputRequest, InputMessage, InputMessageRole
 from batch_router.core.base import TextContent, InferenceParams
 
-provider = GoogleGenAIProvider()
+provider = GoogleGenAIProvider() # add api key to .env file
 
 requests = [
     InputRequest(
