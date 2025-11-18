@@ -25,7 +25,7 @@ class ImageContent(BaseModel):
         """
         with open(file_path, "rb") as file:
             image_base64 = base64.b64encode(file.read()).decode("utf-8")
-            return cls(image_base64=image_base64)
+        return cls(image_base64=image_base64)
 
 class AudioContent(BaseModel):
     modality: Literal[Modality.AUDIO] = Modality.AUDIO
@@ -41,6 +41,6 @@ class AudioContent(BaseModel):
         """
         with open(file_path, "rb") as file:
             audio_base64 = base64.b64encode(file.read()).decode("utf-8")
-            return cls(audio_base64=audio_base64)
+        return cls(audio_base64=audio_base64)
 
 MessageContent = TextContent | ThinkingContent | ImageContent | AudioContent
