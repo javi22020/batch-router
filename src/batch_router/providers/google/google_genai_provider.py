@@ -7,13 +7,14 @@ from batch_router.core.base.request import InferenceParams
 from batch_router.core.base.content import MessageContent, Modality
 from batch_router.core.input.message import InputMessage, InputMessageRole
 from batch_router.core.input.request import InputRequest
+from batch_router.utilities.mime_type import get_mime_type
 from batch_router.providers.google.google_genai_models import GoogleGenAIRequestBody, GoogleGenAIRequest
 from batch_router.core.input.batch import InputBatch
+from batch_router.providers.google.google_genai_models import GoogleGenAIRequest
 import os
 import base64
 import tempfile
 
-from batch_router.providers.google.google_genai_models import GoogleGenAIRequest
 
 class GoogleGenAIProvider(BaseBatchProvider):
     def __init__(self, api_key: str | None = None) -> None:
@@ -102,6 +103,25 @@ class GoogleGenAIProvider(BaseBatchProvider):
             temp_file.write(jsonl_content)
             file_path = temp_file.name
         return file_path
+    
+    def count_input_request_tokens(self, request: InputRequest) -> int:
+        if request.params is None:
+            raise ValueError("Request params are required for Google GenAI.")
+        if request.config is None:
+            raise ValueError("Request config is required for Google GenAI.")
+        model_id = request.config.model_id
+        messages = request.messages
+        response = self.client.models.count_tokens(
+            model=model_id,
+            contents=[
+                self.convert_input_message_from_unified_to_provider(message)
+                for message in messages
+            ]
+        )
+        total_tokens = response.total_tokens
+        if total_tokens is None:
+            raise ValueError("Response total tokens is None.")
+        return total_tokens
     
     def send_batch(self, input_batch: InputBatch) -> str:
         if input_batch.requests[0].config is None:
