@@ -1,5 +1,5 @@
 from .vllm.vllm_provider import vLLMProvider
-from .openai import OpenAIChatProvider
+from .openai import OpenAIChatCompletionsProvider
 from .anthropic import AnthropicProvider
 
-__all__ = ["vLLMProvider", "OpenAIChatProvider", "AnthropicProvider"]
+__all__ = ["vLLMProvider", "OpenAIChatCompletionsProvider", "AnthropicProvider"]
