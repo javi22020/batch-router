@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional, List, Literal
+from typing import Optional, List
+from batch_router.providers.openai.common_models import Error
 
 
 class Message(BaseModel):
@@ -19,9 +20,9 @@ class Usage(BaseModel):
     total_tokens: int
 
 
-class ResponseBody(BaseModel):
+class ChatCompletionsResponseBody(BaseModel):
     id: str
-    object: str
+    object: str # chat.completion
     created: int
     model: str
     choices: List[Choice]
@@ -29,18 +30,13 @@ class ResponseBody(BaseModel):
     system_fingerprint: Optional[str] = None
 
 
-class Response(BaseModel):
+class ChatCompletionsResponse(BaseModel):
     status_code: int
     request_id: str
-    body: ResponseBody
+    body: ChatCompletionsResponseBody
 
 
-class Error(BaseModel):
-    code: Literal["batch_expired", "batch_cancelled", "request_timeout"]
-    message: str
-
-
-class BatchOutputRequest(BaseModel):
+class ChatCompletionsBatchOutputRequest(BaseModel):
     """A batch output request from OpenAI (each line in the JSONL file returned by the API).
     Attributes:
         id: The ID of the request.
@@ -50,5 +46,5 @@ class BatchOutputRequest(BaseModel):
     """
     id: str
     custom_id: str
-    response: Response
+    response: ChatCompletionsResponse
     error: Optional[Error] = None

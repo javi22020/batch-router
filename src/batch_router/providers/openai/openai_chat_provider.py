@@ -5,6 +5,7 @@ import tempfile
 from typing import Any
 import json
 import requests
+from tiktoken import encoding_for_model
 import base64
 from batch_router.core.base.batch import BatchStatus
 from batch_router.core.base.content import (
@@ -25,7 +26,7 @@ from batch_router.core.input.request import InputRequest
 from batch_router.core.output.request import OutputRequest
 from batch_router.core.base.request import InferenceParams
 from batch_router.providers.base.batch_provider import BaseBatchProvider
-from batch_router.providers.openai.chat_completions_models import BatchOutputRequest
+from batch_router.providers.openai.chat_completions_models import ChatCompletionsBatchOutputRequest
 from logging import getLogger
 import os
 
@@ -147,7 +148,7 @@ class OpenAIChatProvider(BaseBatchProvider):
             }
         }
     
-    def convert_output_request_from_provider_to_unified(self, request: BatchOutputRequest) -> OutputRequest:
+    def convert_output_request_from_provider_to_unified(self, request: ChatCompletionsBatchOutputRequest) -> OutputRequest:
         custom_id = request.custom_id
         if request.error is not None:
             error_template = "This request failed with the following error: {error.code} - {error.message}"
@@ -197,7 +198,7 @@ class OpenAIChatProvider(BaseBatchProvider):
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
         """OpenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
         lines = [line.strip() for line in batch.splitlines() if line.strip()]
-        responses = [BatchOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
+        responses = [ChatCompletionsBatchOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
         output_batch = OutputBatch(
             requests=[
                 self.convert_output_request_from_provider_to_unified(response)
@@ -205,6 +206,20 @@ class OpenAIChatProvider(BaseBatchProvider):
             ]
         )
         return output_batch
+
+    def count_input_request_tokens(self, request: InputRequest) -> int:
+        encoding = encoding_for_model(request.config.model_id)
+        total_tokens = 0
+        messages = request.messages
+        for message in messages:
+            for content in message.contents:
+                if content.modality == Modality.TEXT:
+                    text = content.text
+                    tokens = encoding.encode(text=text)
+                    total_tokens += len(tokens)
+                else:
+                    logger.warning(f"Could not count tokens for content modality: {content.modality}")
+        return total_tokens
 
     def send_batch(self, input_batch: InputBatch) -> str:
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
@@ -260,4 +275,5 @@ class OpenAIChatProvider(BaseBatchProvider):
         logger.info(f"OpenAI output file path: {file_path}")
         output_file_text = output_file.text
         output_batch = self.convert_output_batch_from_provider_to_unified(output_file_text)
+        
         return output_batch

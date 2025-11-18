@@ -1,5 +1,5 @@
 import time
-from typing import Any
+from typing import Any, override
 import json
 import subprocess as sp
 import psutil
@@ -22,7 +22,7 @@ from batch_router.core.input.request import InputRequest
 from batch_router.core.output.request import OutputRequest
 from batch_router.core.base.request import InferenceParams
 from batch_router.providers.base.batch_provider import BaseBatchProvider
-from batch_router.providers.openai.chat_completions_models import BatchOutputRequest
+from batch_router.providers.openai.chat_completions_models import ChatCompletionsBatchOutputRequest
 from logging import getLogger
 import os
 
@@ -132,7 +132,7 @@ class vLLMProvider(BaseBatchProvider):
             }
         }
     
-    def convert_output_request_from_provider_to_unified(self, request: BatchOutputRequest) -> OutputRequest:
+    def convert_output_request_from_provider_to_unified(self, request: ChatCompletionsBatchOutputRequest) -> OutputRequest:
         custom_id = request.custom_id
         if request.error is not None:
             error_template = "This request failed with the following error: {error.code} - {error.message}"
@@ -174,7 +174,7 @@ class vLLMProvider(BaseBatchProvider):
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
         """vLLM returns a file object, this method takes the file content and converts it to a OutputBatch."""
         lines = [line.strip() for line in batch.splitlines() if line.strip()]
-        responses = [BatchOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
+        responses = [ChatCompletionsBatchOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
         output_batch = OutputBatch(
             requests=[
                 self.convert_output_request_from_provider_to_unified(response)
@@ -182,6 +182,13 @@ class vLLMProvider(BaseBatchProvider):
             ]
         )
         return output_batch
+    
+    def count_input_request_tokens(self, request: InputRequest) -> int:
+        raise NotImplementedError("vLLM does not support input request token counting.")
+    
+    @override
+    def count_input_batch_tokens(self, batch: InputBatch) -> int:
+        raise NotImplementedError("vLLM does not support input batch token counting.")
     
     def vllm_run_batch(self, input_file_path: str, output_file_path: str) -> int:
         """Run the vLLM run-batch command.
@@ -259,4 +266,5 @@ class vLLMProvider(BaseBatchProvider):
         else:
             raise TimeoutError(f"vLLM output file {output_file_path} not found after 100 attempts, batch {batch_id} is still running")
         output_batch = self.convert_output_batch_from_provider_to_unified(output_file_text)
+        
         return output_batch

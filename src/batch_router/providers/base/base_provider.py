@@ -77,4 +77,18 @@ class BaseProvider(ABC):
         """Convert output batch from provider to unified format."""
         pass
 
+    @abstractmethod
+    def count_input_request_tokens(self, request: InputRequest) -> int:
+        """Count the total number of tokens in the input request."""
+        pass
+
+    def count_input_batch_tokens(self, batch: InputBatch) -> int:
+        """Count the total number of tokens in the input batch."""
+        input_requests = batch.requests
+        total_tokens = 0
+        for request in input_requests:
+            total_tokens += self.count_input_request_tokens(request)
+        
+        return total_tokens
+
 __all__ = ["BaseProvider"]

@@ -174,5 +174,22 @@ class AnthropicProvider(BaseBatchProvider):
         return OutputBatch(
             requests=batch_requests
         )
+    
+    def count_input_batch_tokens(self, batch: InputBatch) -> int:
+        input_requests = batch.requests
+        total_tokens = 0
+        for request in input_requests:
+            anthropic_request = self.convert_input_request_from_unified_to_provider(request)
+            messages = anthropic_request["params"]["messages"]
+            model = anthropic_request["params"]["model"]
+            system = anthropic_request["params"]["system"]
+            response = self.client.messages.count_tokens(
+                messages=messages,
+                model=model,
+                system=system
+            )
+            total_tokens += response.input_tokens
+        
+        return total_tokens
 
 __all__ = ["AnthropicProvider"]
