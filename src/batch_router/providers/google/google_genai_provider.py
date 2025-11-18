@@ -75,7 +75,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
             image_base64 = base64.b64encode(image.image_bytes).decode("utf-8")
             return ImageContent(image_base64=image_base64)
         else:
-            raise ValueError(f"Unsupported output content part: {content.model_dump_json(ensure_ascii=False)}")
+            raise ValueError(f"Unsupported output content part: {content.model_dump_json(ensure_ascii=False, exclude_none=True)}")
     
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> types.Content:
         return types.Content(
@@ -130,7 +130,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
         ]
         jsonl_content = ""
         for request in requests:
-            line = request.model_dump_json(ensure_ascii=False) + "\n"
+            line = request.model_dump_json(ensure_ascii=False, exclude_none=True) + "\n"
             jsonl_content += line
         with tempfile.NamedTemporaryFile(
             mode="w",
