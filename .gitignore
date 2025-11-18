@@ -18,3 +18,6 @@ wheels/
 
 # Pytest
 .pytest_cache/
+
+# Test files
+test_*.ipynb

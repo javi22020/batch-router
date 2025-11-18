@@ -23,7 +23,8 @@ evals = [
 
 [dependency-groups]
 dev = [
-  "pytest >=8.1.1,<9"
+  "ipykernel>=7.1.0",
+  "pytest >=8.1.1,<9",
 ]
 
 [build-system]
