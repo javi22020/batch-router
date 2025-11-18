@@ -54,7 +54,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
     
     def convert_input_content_from_unified_to_provider(self, content: MessageContent) -> types.Part:
         if content.modality == Modality.TEXT:
-            return types.Part.from_text(content.text)
+            return types.Part.from_text(text=content.text)
         elif content.modality == Modality.IMAGE:
             data = base64.b64decode(content.image_base64)
             mime_type = get_mime_type(data)
@@ -180,7 +180,10 @@ class GoogleGenAIProvider(BaseBatchProvider):
         model_id = params.model_id
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
         file = self.client.files.upload(
-            file=input_file_path
+            file=input_file_path,
+            config={
+                "mime_type": "application/jsonl"
+            }
         )
         file_name = file.name
         batch_job = self.client.batches.create(
