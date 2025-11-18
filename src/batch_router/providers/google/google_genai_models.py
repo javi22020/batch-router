@@ -1,10 +1,15 @@
 from pydantic import BaseModel
 from google.genai import types
 
-class GoogleGenAIRequestBody(BaseModel):
+class GoogleGenAIInputRequestBody(BaseModel):
     contents: list[types.Content]
 
-class GoogleGenAIRequest(BaseModel):
+class GoogleGenAIInputRequest(BaseModel):
     key: str
-    request: GoogleGenAIRequestBody
+    request: GoogleGenAIInputRequestBody
     config: types.GenerateContentConfig
+
+class GoogleGenAIOutputRequest(BaseModel):
+    response: types.GenerateContentResponse
+    config: types.GenerateContentConfig
+    key: str

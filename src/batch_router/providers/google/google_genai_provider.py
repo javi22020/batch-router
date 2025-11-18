@@ -11,9 +11,9 @@ from batch_router.core.input.message import InputMessage, InputMessageRole
 from batch_router.core.input.request import InputRequest
 from batch_router.core.output.request import OutputRequest
 from batch_router.utilities.mime_type import get_mime_type
-from batch_router.providers.google.google_genai_models import GoogleGenAIRequestBody, GoogleGenAIRequest
+from batch_router.providers.google.google_genai_models import GoogleGenAIOutputRequest, GoogleGenAIInputRequestBody, GoogleGenAIInputRequest
 from batch_router.core.input.batch import InputBatch
-from batch_router.providers.google.google_genai_models import GoogleGenAIRequest
+from batch_router.providers.google.google_genai_models import GoogleGenAIInputRequest
 import os
 import base64
 import tempfile
@@ -99,12 +99,12 @@ class GoogleGenAIProvider(BaseBatchProvider):
             ]
         )
     
-    def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> GoogleGenAIRequest:
+    def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> GoogleGenAIInputRequest:
         if request.params is None:
             raise ValueError("Request params are required for Google GenAI.")
-        return GoogleGenAIRequest(
+        return GoogleGenAIInputRequest(
             key=request.custom_id,
-            request=GoogleGenAIRequestBody(
+            request=GoogleGenAIInputRequestBody(
                 contents=[
                     self.convert_input_message_from_unified_to_provider(message)
                     for message in request.messages
@@ -113,10 +113,10 @@ class GoogleGenAIProvider(BaseBatchProvider):
             config=self.inference_params_to_provider(request.params)
         )
 
-    def convert_output_request_from_provider_to_unified(self, request: types.GenerateContentResponse) -> OutputRequest:
-        custom_id = request.response_id
+    def convert_output_request_from_provider_to_unified(self, request: GoogleGenAIOutputRequest) -> OutputRequest:
+        custom_id = request.key
         try:
-            content = request.candidates[0].content
+            content = request.response.candidates[0].content
         except Exception as e:
             error_message = f"Error converting output request from provider to unified for request {custom_id}: {str(e)}"
             logger.error(error_message)
@@ -171,12 +171,11 @@ class GoogleGenAIProvider(BaseBatchProvider):
         content = batch.strip()
         print("CONTENT:\n\n" + content + "\n\n")
         lines = [line.strip() for line in content.splitlines() if line.strip()]
-        responses = [types.GenerateContentResponse.model_validate_json(line, extra="ignore") for line in lines]
+        responses = [GoogleGenAIOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
         requests = [
             self.convert_output_request_from_provider_to_unified(response)
             for response in responses
         ]
-        requests = [request for request in requests if request is not None]
         output_batch = OutputBatch(
             requests=requests
         )
