@@ -46,9 +46,13 @@ class GoogleGenAIProvider(BaseBatchProvider):
         if content.modality == Modality.TEXT:
             return types.Part.from_text(content.text)
         elif content.modality == Modality.IMAGE:
-            return types.Part.from_bytes(base64.b64decode(content.image_base64))
+            data = base64.b64decode(content.image_base64)
+            mime_type = get_mime_type(data)
+            return types.Part.from_bytes(data, mime_type=mime_type)
         elif content.modality == Modality.AUDIO:
-            return types.Part.from_bytes(base64.b64decode(content.audio_base64))
+            data = base64.b64decode(content.audio_base64)
+            mime_type = get_mime_type(data)
+            return types.Part.from_bytes(data, mime_type=mime_type)
         else:
             raise ValueError(f"Unsupported input content modality: {content.modality}")
     
