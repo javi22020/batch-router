@@ -99,8 +99,6 @@ class AnthropicProvider(BaseBatchProvider):
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> Request:
         if request.params is None:
             raise ValueError("Request params are required for Anthropic.")
-        if request.config is None:
-            raise ValueError("Request config is required for Anthropic.")
         return Request(
             custom_id=request.custom_id,
             params=MessageCreateParamsNonStreaming(

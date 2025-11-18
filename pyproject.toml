@@ -26,6 +26,7 @@ evals = [
 dev = [
   "ipykernel>=7.1.0",
   "pytest >=8.1.1,<9",
+  "python-dotenv>=1.2.1",
 ]
 
 [build-system]

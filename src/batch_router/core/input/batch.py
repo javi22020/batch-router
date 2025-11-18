@@ -1,27 +1,21 @@
 from pydantic import BaseModel, Field
-from batch_router.core.input.request import InputRequest, InputRequestConfig
-from batch_router.core.base.batch import BatchConfig
+from batch_router.core.input.request import InputRequest
+from batch_router.core.base.request import InferenceParams
 
 class InputBatch(BaseModel):
     """An input batch (inputs of a batch inference)."""
     requests: list[InputRequest] = Field(description="The requests of the batch.", min_length=1)
 
-    def with_config(self, config: BatchConfig) -> "InputBatch":
-        """Configure the batch with a config. This will set the model and provider for all requests in the batch.
+    def with_params(self, params: InferenceParams) -> "InputBatch":
+        """Configure all requests in the batch with the same inference params.
         Args:
-            config: The BatchConfig to use for the batch.
+            params: The InferenceParams to use for all requests in the batch.
         Returns:
-            The InputBatch with the configured requests.
+            The InputBatch with the configured inference params.
         """
-        request_config = InputRequestConfig(
-            model_id=config.model_id,
-            provider_id=config.provider_id
-        )
-        request_params = config.params
-        requests = [request.with_config(request_config).with_params(request_params) for request in self.requests]
-        return InputBatch(
-            requests=requests
-        )
+        requests = [request.with_params(params) for request in self.requests]
+        
+        return InputBatch(requests=requests)
     
     def save_to_jsonl(self, file_path: str) -> None:
         text = ""

@@ -12,6 +12,9 @@ wheels/
 .venv
 *.lock
 
+# Secrets
+.env
+
 # Batch router generated files
 .batch_router/
 *.jsonl

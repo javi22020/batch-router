@@ -126,8 +126,6 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         )
 
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> dict[str, Any]:
-        if request.config is None:
-            raise ValueError("Request config is required for OpenAI chat completions.")
         if request.params is None:
             raise ValueError("Request params are required for OpenAI chat completions.")
         messages = [
@@ -152,7 +150,7 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
             "method": "POST",
             "url": "/v1/chat/completions",
             "body": {
-                "model": request.config.model_id,
+                "model": request.params.model_id,
                 "messages": messages,
                 **self.inference_params_to_provider(request.params)
             }
@@ -218,7 +216,7 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         return output_batch
 
     def count_input_request_tokens(self, request: InputRequest) -> int:
-        encoding = encoding_for_model(request.config.model_id)
+        encoding = encoding_for_model(request.params.model_id)
         total_tokens = 0
         messages = request.messages
         for message in messages:

@@ -3,6 +3,7 @@ from batch_router.core.base import BatchStatus, ImageContent, TextContent, Think
 from batch_router.core.base.provider import ProviderId
 from batch_router.core.output.message import OutputMessage
 from batch_router.core.output.batch import OutputBatch
+from batch_router.core.output.role import OutputMessageRole
 from batch_router.providers.base.batch_provider import BaseBatchProvider
 from batch_router.core.base.request import InferenceParams
 from batch_router.core.base.content import MessageContent, Modality
@@ -44,6 +45,12 @@ class GoogleGenAIProvider(BaseBatchProvider):
             return "user"
         elif role == InputMessageRole.ASSISTANT:
             return "model"
+        
+    def output_message_role_to_unified(self, role: str) -> OutputMessageRole:
+        if role == "model":
+            return OutputMessageRole.ASSISTANT
+        else:
+            raise ValueError(f"Invalid output message role: {role}")
     
     def convert_input_content_from_unified_to_provider(self, content: MessageContent) -> types.Part:
         if content.modality == Modality.TEXT:
@@ -91,8 +98,6 @@ class GoogleGenAIProvider(BaseBatchProvider):
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> GoogleGenAIRequest:
         if request.params is None:
             raise ValueError("Request params are required for Google GenAI.")
-        if request.config is None:
-            raise ValueError("Request config is required for Google GenAI.")
         return GoogleGenAIRequest(
             key=request.custom_id,
             request=GoogleGenAIRequestBody(
@@ -154,9 +159,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
     def count_input_request_tokens(self, request: InputRequest) -> int:
         if request.params is None:
             raise ValueError("Request params are required for Google GenAI.")
-        if request.config is None:
-            raise ValueError("Request config is required for Google GenAI.")
-        model_id = request.config.model_id
+        model_id = request.params.model_id
         messages = request.messages
         response = self.client.models.count_tokens(
             model=model_id,
@@ -171,9 +174,10 @@ class GoogleGenAIProvider(BaseBatchProvider):
         return total_tokens
     
     def send_batch(self, input_batch: InputBatch) -> str:
-        if input_batch.requests[0].config is None:
-            raise ValueError("Request config is required for Google GenAI.")
-        model_id = input_batch.requests[0].config.model_id
+        params = input_batch.requests[0].params
+        if params is None:
+            raise ValueError("Request params are required for Google GenAI.")
+        model_id = params.model_id
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
         file = self.client.files.upload(
             file=input_file_path

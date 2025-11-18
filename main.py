@@ -1,10 +1,12 @@
 import time
-from batch_router.core.base import BatchConfig, BatchStatus, ProviderId
+from dotenv import load_dotenv
+load_dotenv()
+from batch_router.core.base import BatchStatus, ProviderId
 from batch_router.providers import GoogleGenAIProvider
 from batch_router.core.input import InputBatch, InputRequest, InputMessage, InputMessageRole
 from batch_router.core.base import TextContent, InferenceParams
 
-provider = GoogleGenAIProvider(api_key="your-api-key")
+provider = GoogleGenAIProvider()
 
 requests = [
     InputRequest(
@@ -16,10 +18,7 @@ requests = [
                     TextContent(text="Hello, how are you?")
                 ]
             )
-        ],
-        params=InferenceParams(
-            max_output_tokens=100
-        )
+        ]
     )
     for i in range(10)
 ]
@@ -27,12 +26,14 @@ input_batch = InputBatch(
     requests=requests
 )
 
-google_genai_batch = input_batch.with_config(
-    config=BatchConfig(
-        provider_id=ProviderId.GOOGLE,
-        model_id="gemini-2.5-flash"
-    )
+google_params = InferenceParams(
+    model_id="gemini-2.5-flash-lite",
+    provider_id=ProviderId.GOOGLE,
+    system_prompt="Answer like a pirate.",
+    max_output_tokens=128
 )
+
+google_genai_batch = input_batch.with_params(google_params)
 
 # You can also use the same input batch for multiple providers by configuring it with different models and providers.
 # openai_batch = input_batch.with_config(
@@ -43,6 +44,10 @@ google_genai_batch = input_batch.with_config(
 # )
 
 google_genai_batch_id = provider.send_batch(google_genai_batch)
+
+total_tokens = provider.count_input_batch_tokens(google_genai_batch)
+
+print(f"This test batch has a total of {total_tokens} tokens.")
 
 while provider.poll_status(google_genai_batch_id) != BatchStatus.COMPLETED:
     time.sleep(5)

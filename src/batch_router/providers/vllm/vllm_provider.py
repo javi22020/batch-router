@@ -110,8 +110,6 @@ class vLLMProvider(BaseBatchProvider):
         raise NotImplementedError("vLLM does not support output message conversion.")
 
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> dict[str, Any]:
-        if request.config is None:
-            raise ValueError("Request config is required for vLLM.")
         if request.params is None:
             raise ValueError("Request params are required for vLLM.")
         messages = [
@@ -136,7 +134,7 @@ class vLLMProvider(BaseBatchProvider):
             "method": "POST",
             "url": "/v1/chat/completions",
             "body": {
-                "model": request.config.model_id,
+                "model": request.params.model_id,
                 "messages": messages,
                 **self.inference_params_to_provider(request.params)
             }
