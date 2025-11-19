@@ -18,6 +18,7 @@ import os
 import base64
 import tempfile
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,9 @@ class GoogleGenAIProvider(BaseBatchProvider):
         )
         self.client = Client(api_key=api_key or os.getenv("GOOGLE_API_KEY"))
 
-    def inference_params_to_provider(self, params: InferenceParams) -> types.GenerateContentConfig:
+    def inference_params_to_provider(self, params: InferenceParams) -> dict[str, Any]:
         provider_params = {
-            "system_instruction": params.system_prompt,
+            "systemInstruction": params.system_prompt, # Google GenAI uses "systemInstruction" instead of "system_instruction"
             "max_output_tokens": params.max_output_tokens,
             "temperature": params.temperature,
             **params.additional_params
@@ -42,7 +43,7 @@ class GoogleGenAIProvider(BaseBatchProvider):
         
         provider_params = {k: v for k, v in provider_params.items() if v is not None}
 
-        return types.GenerateContentConfig.model_validate(provider_params, extra="ignore")
+        return provider_params
     
     def input_message_role_to_provider(self, role: InputMessageRole):
         if role == InputMessageRole.USER:

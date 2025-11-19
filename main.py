@@ -57,4 +57,4 @@ while provider.poll_status(google_genai_batch_id) != BatchStatus.COMPLETED:
 
 google_genai_batch = provider.get_results(google_genai_batch_id)
 for request in google_genai_batch.requests:
-    print(f"Request {request.custom_id} has text {request.messages[0].contents[0].text}")
+    print(request)
