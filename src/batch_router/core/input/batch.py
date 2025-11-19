@@ -15,7 +15,7 @@ class InputBatch(BaseModel):
         """
         requests = [request.with_params(params) for request in self.requests]
         
-        return InputBatch(requests=requests)
+        return self.model_copy(update={"requests": requests})
     
     def __str__(self) -> str:
         return f"InputBatch(requests={self.requests})"
