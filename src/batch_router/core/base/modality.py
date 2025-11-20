@@ -1,7 +1,15 @@
 from enum import Enum
 
 class Modality(Enum):
-    """The modality of a content or provider."""
+    """
+    Enumeration representing the supported modalities for content or provider capabilities.
+
+    Attributes:
+        TEXT (str): Represents text modality.
+        THINKING (str): Represents thinking or reasoning modality.
+        IMAGE (str): Represents image modality.
+        AUDIO (str): Represents audio modality.
+    """
     TEXT = "text"
     THINKING = "thinking"
     IMAGE = "image"

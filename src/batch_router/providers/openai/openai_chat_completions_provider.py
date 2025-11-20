@@ -33,20 +33,50 @@ import os
 logger = getLogger(__name__)
 
 class OpenAIChatCompletionsProvider(BaseBatchProvider):
-    """A provider for OpenAI batch inference. To use this provider, you need to have a OpenAI API key."""
+    """
+    A provider for OpenAI batch inference using the Chat Completions API.
+
+    Attributes:
+        client (OpenAI): The OpenAI client instance.
+    """
     def __init__(self, api_key: str | None = None) -> None:
+        """
+        Initializes the OpenAIChatCompletionsProvider.
+
+        Args:
+            api_key (str | None): The API key for authenticating with OpenAI.
+                                  If not provided, it defaults to the OPENAI_API_KEY environment variable.
+        """
         super().__init__(
             provider_id=ProviderId.OPENAI
         )
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
     
     def input_message_role_to_provider(self, role: InputMessageRole) -> str:
+        """
+        Convert unified input message role to OpenAI role.
+
+        Args:
+            role (InputMessageRole): The unified input message role.
+
+        Returns:
+            str: The OpenAI role string ('user' or 'assistant').
+        """
         if role == InputMessageRole.USER:
             return "user"
         elif role == InputMessageRole.ASSISTANT:
             return "assistant"
     
     def inference_params_to_provider(self, params: InferenceParams) -> dict[str, Any]:
+        """
+        Convert unified inference parameters to OpenAI chat completion parameters.
+
+        Args:
+            params (InferenceParams): The unified inference parameters.
+
+        Returns:
+            dict[str, Any]: The configuration dictionary for OpenAI.
+        """
         provider_params = {
             "max_completion_tokens": params.max_output_tokens,
             "temperature": params.temperature
@@ -62,6 +92,18 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         return provider_params
     
     def output_message_role_to_unified(self, role: str) -> OutputMessageRole:
+        """
+        Convert OpenAI output message role to unified role.
+
+        Args:
+            role (str): The OpenAI role string.
+
+        Returns:
+            OutputMessageRole: The unified output message role.
+
+        Raises:
+            ValueError: If the role is invalid.
+        """
         if role == "assistant":
             return OutputMessageRole.ASSISTANT
         elif role == "tool":
@@ -70,6 +112,18 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
             raise ValueError(f"Invalid output message role: {role}")
     
     def convert_input_content_from_unified_to_provider(self, content: MessageContent) -> dict[str, Any]:
+        """
+        Convert unified content to OpenAI content part parameter.
+
+        Args:
+            content (MessageContent): The unified content.
+
+        Returns:
+            dict[str, Any]: The OpenAI content part.
+
+        Raises:
+            ValueError: If the content modality is unsupported.
+        """
         if content.modality == Modality.TEXT:
             return {
                 "type": "text",
@@ -93,6 +147,18 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
             raise ValueError(f"Unsupported input content modality: {content.modality}")
     
     def convert_output_content_from_provider_to_unified(self, content: ChatCompletionContentPartParam) -> MessageContent:
+        """
+        Convert OpenAI output content part to unified message content.
+
+        Args:
+            content (ChatCompletionContentPartParam): The OpenAI content part.
+
+        Returns:
+            MessageContent: The unified message content.
+
+        Raises:
+            ValueError: If the output content type is unsupported.
+        """
         if content["type"] == "text":
             text = content["text"]
             return TextContent(text=text)
@@ -108,6 +174,15 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
             raise ValueError(f"Unsupported output content type: {content['type']}")
     
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> dict[str, Any]:
+        """
+        Convert unified input message to OpenAI message format.
+
+        Args:
+            message (InputMessage): The unified input message.
+
+        Returns:
+            dict[str, Any]: The OpenAI message dictionary.
+        """
         return {
             "role": self.input_message_role_to_provider(message.role),
             "content": [
@@ -117,6 +192,15 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         }
     
     def convert_output_message_from_provider_to_unified(self, message: ChatCompletionMessage) -> OutputMessage:
+        """
+        Convert OpenAI chat completion message to unified output message.
+
+        Args:
+            message (ChatCompletionMessage): The OpenAI chat completion message.
+
+        Returns:
+            OutputMessage: The unified output message.
+        """
         return OutputMessage(
             role=self.output_message_role_to_unified(message.role),
             contents=[
@@ -126,6 +210,18 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         )
 
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> dict[str, Any]:
+        """
+        Convert unified input request to OpenAI batch request format.
+
+        Args:
+            request (InputRequest): The unified input request.
+
+        Returns:
+            dict[str, Any]: The OpenAI batch request dictionary.
+
+        Raises:
+            ValueError: If request params are missing.
+        """
         if request.params is None:
             raise ValueError("Request params are required for OpenAI chat completions.")
         messages = [
@@ -157,6 +253,15 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         }
     
     def convert_output_request_from_provider_to_unified(self, request: ChatCompletionsBatchOutputRequest) -> OutputRequest:
+        """
+        Convert OpenAI batch output request to unified output request.
+
+        Args:
+            request (ChatCompletionsBatchOutputRequest): The OpenAI batch output item.
+
+        Returns:
+            OutputRequest: The unified output request.
+        """
         custom_id = request.custom_id
         if request.error is not None:
             error_template = "This request failed with the following error: {error.code} - {error.message}"
@@ -182,7 +287,18 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
             )
     
     def convert_input_batch_from_unified_to_provider(self, batch: InputBatch) -> str:
-        """OpenAI needs to upload a file to the API for batch inference, so this method returns the path of the created input file."""
+        """
+        Convert unified input batch to a JSONL file path for OpenAI.
+
+        OpenAI requires a file upload for batch processing. This method writes the batch requests
+        to a temporary JSONL file and returns the file path.
+
+        Args:
+            batch (InputBatch): The unified input batch.
+
+        Returns:
+            str: The path to the temporary JSONL file.
+        """
         input_requests = [
             self.convert_input_request_from_unified_to_provider(request)
             for request in batch.requests
@@ -204,7 +320,15 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         return file_path
     
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
-        """OpenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
+        """
+        Convert OpenAI output file content to unified output batch.
+
+        Args:
+            batch (str): The content of the output JSONL file as a string.
+
+        Returns:
+            OutputBatch: The unified output batch.
+        """
         lines = [line.strip() for line in batch.splitlines() if line.strip()]
         responses = [ChatCompletionsBatchOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
         output_batch = OutputBatch(
@@ -216,6 +340,15 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         return output_batch
 
     def count_input_request_tokens(self, request: InputRequest) -> int:
+        """
+        Count the tokens for a single input request using tiktoken.
+
+        Args:
+            request (InputRequest): The unified input request.
+
+        Returns:
+            int: The token count.
+        """
         encoding = encoding_for_model(request.params.model_id)
         total_tokens = 0
         messages = request.messages
@@ -230,6 +363,17 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         return total_tokens
 
     def send_batch(self, input_batch: InputBatch) -> str:
+        """
+        Send the input batch to OpenAI.
+
+        This involves uploading the input file and creating a batch job.
+
+        Args:
+            input_batch (InputBatch): The unified input batch.
+
+        Returns:
+            str: The batch ID.
+        """
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
         logger.info(f"Converted OpenAI input batch to file path: {input_file_path}")
         with open(input_file_path, "rb") as input_file:
@@ -249,6 +393,18 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         return batch_id
     
     def poll_status(self, batch_id: str) -> BatchStatus:
+        """
+        Check the status of a submitted batch.
+
+        Args:
+            batch_id (str): The batch ID to check.
+
+        Returns:
+            BatchStatus: The current status of the batch.
+
+        Raises:
+            ValueError: If the batch status is invalid.
+        """
         batch = self.client.batches.retrieve(batch_id)
         if batch.status in ["validating"]:
             current_status = BatchStatus.PENDING
@@ -268,6 +424,15 @@ class OpenAIChatCompletionsProvider(BaseBatchProvider):
         return current_status
     
     def get_results(self, batch_id: str) -> OutputBatch:
+        """
+        Retrieve and parse the results of a completed batch.
+
+        Args:
+            batch_id (str): The batch ID to retrieve results for.
+
+        Returns:
+            OutputBatch: The unified output batch containing the results.
+        """
         result_batch = self.client.batches.retrieve(batch_id)
         output_file_id = result_batch.output_file_id
         output_file = self.client.files.content(file_id=output_file_id)

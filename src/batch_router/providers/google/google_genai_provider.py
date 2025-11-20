@@ -23,13 +23,35 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 class GoogleGenAIProvider(BaseBatchProvider):
+    """
+    A provider for Google GenAI batch inference.
+
+    Attributes:
+        client (Client): The Google GenAI client instance.
+    """
     def __init__(self, api_key: str | None = None) -> None:
+        """
+        Initializes the GoogleGenAIProvider.
+
+        Args:
+            api_key (str | None): The API key for authenticating with Google GenAI.
+                                  If not provided, it defaults to the GOOGLE_API_KEY environment variable.
+        """
         super().__init__(
             provider_id=ProviderId.GOOGLE
         )
         self.client = Client(api_key=api_key or os.getenv("GOOGLE_API_KEY"))
 
     def inference_params_to_provider(self, params: InferenceParams) -> dict[str, Any]:
+        """
+        Convert unified inference parameters to Google GenAI configuration.
+
+        Args:
+            params (InferenceParams): The unified inference parameters.
+
+        Returns:
+            dict[str, Any]: The configuration dictionary for Google GenAI.
+        """
         provider_params = {
             "systemInstruction": params.system_prompt, # Google GenAI uses "systemInstruction" instead of "system_instruction"
             "max_output_tokens": params.max_output_tokens,
@@ -46,18 +68,51 @@ class GoogleGenAIProvider(BaseBatchProvider):
         return provider_params
     
     def input_message_role_to_provider(self, role: InputMessageRole):
+        """
+        Convert unified input message role to Google GenAI role.
+
+        Args:
+            role (InputMessageRole): The unified input message role.
+
+        Returns:
+            str: The Google GenAI role string ('user' or 'model').
+        """
         if role == InputMessageRole.USER:
             return "user"
         elif role == InputMessageRole.ASSISTANT:
             return "model"
         
     def output_message_role_to_unified(self, role: str) -> OutputMessageRole:
+        """
+        Convert Google GenAI output message role to unified role.
+
+        Args:
+            role (str): The Google GenAI role string.
+
+        Returns:
+            OutputMessageRole: The unified output message role.
+
+        Raises:
+            ValueError: If the role is invalid.
+        """
         if role == "model":
             return OutputMessageRole.ASSISTANT
         else:
             raise ValueError(f"Invalid output message role: {role}")
     
     def convert_input_content_from_unified_to_provider(self, content: MessageContent) -> types.Part:
+        """
+        Convert unified content to Google GenAI Part.
+
+        Args:
+            content (MessageContent): The unified content.
+
+        Returns:
+            types.Part: The Google GenAI content part.
+
+        Raises:
+            ValueError: If the content modality is unsupported.
+        """
         if content.modality == Modality.TEXT:
             return types.Part.from_text(text=content.text)
         elif content.modality == Modality.IMAGE:
@@ -72,6 +127,18 @@ class GoogleGenAIProvider(BaseBatchProvider):
             raise ValueError(f"Unsupported input content modality: {content.modality}")
         
     def convert_output_content_from_provider_to_unified(self, content: types.Part) -> MessageContent:
+        """
+        Convert Google GenAI output Part to unified content.
+
+        Args:
+            content (types.Part): The Google GenAI content part.
+
+        Returns:
+            MessageContent: The unified message content.
+
+        Raises:
+            ValueError: If the output content part is unsupported.
+        """
         if content.text is not None:
             return TextContent(text=content.text)
         elif content.thought is not None:
@@ -83,6 +150,15 @@ class GoogleGenAIProvider(BaseBatchProvider):
             raise ValueError(f"Unsupported output content part: {content.model_dump_json(ensure_ascii=False, exclude_none=True)}")
     
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> types.Content:
+        """
+        Convert unified input message to Google GenAI Content.
+
+        Args:
+            message (InputMessage): The unified input message.
+
+        Returns:
+            types.Content: The Google GenAI content object.
+        """
         return types.Content(
             parts=[
                 self.convert_input_content_from_unified_to_provider(content)
@@ -92,6 +168,15 @@ class GoogleGenAIProvider(BaseBatchProvider):
         )
     
     def convert_output_message_from_provider_to_unified(self, message: types.Content) -> OutputMessage:
+        """
+        Convert Google GenAI output Content to unified output message.
+
+        Args:
+            message (types.Content): The Google GenAI content object.
+
+        Returns:
+            OutputMessage: The unified output message.
+        """
         return OutputMessage(
             role=self.output_message_role_to_unified(message.role),
             contents=[
@@ -101,6 +186,18 @@ class GoogleGenAIProvider(BaseBatchProvider):
         )
     
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> GoogleGenAIInputRequest:
+        """
+        Convert unified input request to Google GenAI input request structure.
+
+        Args:
+            request (InputRequest): The unified input request.
+
+        Returns:
+            GoogleGenAIInputRequest: The Google GenAI specific input request object.
+
+        Raises:
+            ValueError: If request parameters are missing.
+        """
         if request.params is None:
             raise ValueError("Request params are required for Google GenAI.")
         return GoogleGenAIInputRequest(
@@ -115,6 +212,15 @@ class GoogleGenAIProvider(BaseBatchProvider):
         )
 
     def convert_output_request_from_provider_to_unified(self, request: GoogleGenAIOutputRequest) -> OutputRequest:
+        """
+        Convert Google GenAI output request to unified output request.
+
+        Args:
+            request (GoogleGenAIOutputRequest): The Google GenAI output request object.
+
+        Returns:
+            OutputRequest: The unified output request.
+        """
         custom_id = request.key
         try:
             content = request.response.candidates[0].content
@@ -145,7 +251,18 @@ class GoogleGenAIProvider(BaseBatchProvider):
 
     
     def convert_input_batch_from_unified_to_provider(self, batch: InputBatch) -> str:
-        """Google GenAI needs to upload a file to the API for batch inference, so this method returns the path of the created input file."""
+        """
+        Convert unified input batch to a JSONL file path for Google GenAI.
+
+        Google GenAI requires a file upload for batch processing. This method writes the batch requests
+        to a temporary JSONL file and returns the file path.
+
+        Args:
+            batch (InputBatch): The unified input batch.
+
+        Returns:
+            str: The path to the temporary JSONL file.
+        """
         requests = [
             self.convert_input_request_from_unified_to_provider(request)
             for request in batch.requests
@@ -168,7 +285,15 @@ class GoogleGenAIProvider(BaseBatchProvider):
         return file_path
 
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
-        """Google GenAI returns a file object, this method takes the file content and converts it to a OutputBatch."""
+        """
+        Convert Google GenAI output file content to unified output batch.
+
+        Args:
+            batch (str): The content of the output JSONL file as a string.
+
+        Returns:
+            OutputBatch: The unified output batch.
+        """
         content = batch.strip()
         lines = [line.strip() for line in content.splitlines() if line.strip()]
         responses = [GoogleGenAIOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
@@ -182,6 +307,18 @@ class GoogleGenAIProvider(BaseBatchProvider):
         return output_batch
     
     def count_input_request_tokens(self, request: InputRequest) -> int:
+        """
+        Count the tokens for a single input request using the Google GenAI API.
+
+        Args:
+            request (InputRequest): The unified input request.
+
+        Returns:
+            int: The token count.
+
+        Raises:
+            ValueError: If request params are missing or response tokens are None.
+        """
         if request.params is None:
             raise ValueError("Request params are required for Google GenAI.")
         model_id = request.params.model_id
@@ -200,6 +337,20 @@ class GoogleGenAIProvider(BaseBatchProvider):
         return total_tokens
     
     def send_batch(self, input_batch: InputBatch) -> str:
+        """
+        Send the input batch to Google GenAI.
+
+        This involves uploading the input file and creating a batch job.
+
+        Args:
+            input_batch (InputBatch): The unified input batch.
+
+        Returns:
+            str: The batch job name (ID).
+
+        Raises:
+            ValueError: If request params are missing or batch job creation fails.
+        """
         params = input_batch.requests[0].params
         if params is None:
             raise ValueError("Request params are required for Google GenAI.")
@@ -220,6 +371,15 @@ class GoogleGenAIProvider(BaseBatchProvider):
         return name
     
     def poll_status(self, batch_id: str) -> BatchStatus:
+        """
+        Check the status of a submitted batch.
+
+        Args:
+            batch_id (str): The batch job name (ID).
+
+        Returns:
+            BatchStatus: The current status of the batch.
+        """
         batch_job = self.client.batches.get(name=batch_id)
         status = batch_job.state
         if status is None:
@@ -240,6 +400,20 @@ class GoogleGenAIProvider(BaseBatchProvider):
             return BatchStatus.PENDING
     
     def get_results(self, batch_id: str) -> OutputBatch:
+        """
+        Retrieve and parse the results of a completed batch.
+
+        This involves downloading the output file and parsing it.
+
+        Args:
+            batch_id (str): The batch job name (ID).
+
+        Returns:
+            OutputBatch: The unified output batch containing the results.
+
+        Raises:
+            ValueError: If the batch output file is missing.
+        """
         batch_job = self.client.batches.get(name=batch_id)
         output = batch_job.dest
         if output is None:
