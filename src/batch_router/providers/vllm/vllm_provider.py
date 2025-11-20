@@ -29,12 +29,24 @@ import os
 logger = getLogger(__name__)
 
 class vLLMProvider(BaseBatchProvider):
-    """A provider for vLLM local batch inference. You need to have vLLM installed."""
+    """
+    A provider for vLLM local batch inference.
+
+    This provider manages local vLLM processes for batch inference.
+    Note: Requires vLLM to be installed and accessible.
+
+    Attributes:
+        model_path (str): The path to the model to be used by vLLM.
+        run_batch_kwargs (dict[str, Any] | None): Additional command-line arguments for the vLLM process.
+    """
     def __init__(self, model_path: str, run_batch_kwargs: dict[str, Any] | None = None) -> None:
-        """Initialize the vLLMProvider.
+        """
+        Initialize the vLLMProvider.
+
         Args:
-            model_path: The path to the vLLM model.
-            run_batch_kwargs: Additional kwargs to pass to the vLLM run-batch command (-i, -o and --model are already set by the provider).
+            model_path (str): The path to the vLLM model.
+            run_batch_kwargs (dict[str, Any] | None): Additional kwargs to pass to the vLLM run-batch command.
+                                                      Arguments -i, -o and --model are already handled by the provider.
         """
         super().__init__(
             provider_id=ProviderId.VLLM
@@ -43,12 +55,30 @@ class vLLMProvider(BaseBatchProvider):
         self.run_batch_kwargs = run_batch_kwargs
     
     def input_message_role_to_provider(self, role: InputMessageRole) -> str:
+        """
+        Convert unified input message role to vLLM role.
+
+        Args:
+            role (InputMessageRole): The unified input message role.
+
+        Returns:
+            str: The vLLM role string ('user' or 'assistant').
+        """
         if role == InputMessageRole.USER:
             return "user"
         elif role == InputMessageRole.ASSISTANT:
             return "assistant"
     
     def inference_params_to_provider(self, params: InferenceParams) -> dict[str, Any]:
+        """
+        Convert unified inference parameters to vLLM parameters.
+
+        Args:
+            params (InferenceParams): The unified inference parameters.
+
+        Returns:
+            dict[str, Any]: The configuration dictionary for vLLM.
+        """
         provider_params = {
             "max_completion_tokens": params.max_output_tokens,
             "temperature": params.temperature
@@ -64,6 +94,18 @@ class vLLMProvider(BaseBatchProvider):
         return provider_params
     
     def output_message_role_to_unified(self, role: str) -> OutputMessageRole:
+        """
+        Convert vLLM output message role to unified role.
+
+        Args:
+            role (str): The vLLM role string.
+
+        Returns:
+            OutputMessageRole: The unified output message role.
+
+        Raises:
+            ValueError: If the role is invalid.
+        """
         if role == "assistant":
             return OutputMessageRole.ASSISTANT
         elif role == "tool":
@@ -72,6 +114,18 @@ class vLLMProvider(BaseBatchProvider):
             raise ValueError(f"Invalid output message role: {role}")
     
     def convert_input_content_from_unified_to_provider(self, content: MessageContent) -> dict[str, Any]:
+        """
+        Convert unified content to vLLM content part.
+
+        Args:
+            content (MessageContent): The unified content.
+
+        Returns:
+            dict[str, Any]: The vLLM content part.
+
+        Raises:
+            ValueError: If the content modality is unsupported.
+        """
         if content.modality == Modality.TEXT:
             return {
                 "type": "text",
@@ -95,9 +149,26 @@ class vLLMProvider(BaseBatchProvider):
             raise ValueError(f"Unsupported input content modality: {content.modality}")
     
     def convert_output_content_from_provider_to_unified(self, content: Any) -> MessageContent:
+        """
+        Convert vLLM output content to unified message content.
+
+        Note: Not currently implemented as vLLM output structure handling is done via ChatCompletionsBatchOutputRequest directly in request conversion.
+
+        Raises:
+            NotImplementedError: Always.
+        """
         raise NotImplementedError("vLLM does not support output content conversion.")
     
     def convert_input_message_from_unified_to_provider(self, message: InputMessage) -> dict[str, Any]:
+        """
+        Convert unified input message to vLLM message format.
+
+        Args:
+            message (InputMessage): The unified input message.
+
+        Returns:
+            dict[str, Any]: The vLLM message dictionary.
+        """
         return {
             "role": self.input_message_role_to_provider(message.role),
             "content": [
@@ -107,9 +178,29 @@ class vLLMProvider(BaseBatchProvider):
         }
     
     def convert_output_message_from_provider_to_unified(self, message: Any) -> OutputMessage:
+        """
+        Convert vLLM output message to unified output message.
+
+        Note: Not currently implemented.
+
+        Raises:
+            NotImplementedError: Always.
+        """
         raise NotImplementedError("vLLM does not support output message conversion.")
 
     def convert_input_request_from_unified_to_provider(self, request: InputRequest) -> dict[str, Any]:
+        """
+        Convert unified input request to vLLM request object.
+
+        Args:
+            request (InputRequest): The unified input request.
+
+        Returns:
+            dict[str, Any]: The vLLM request dictionary.
+
+        Raises:
+            ValueError: If request params are missing.
+        """
         if request.params is None:
             raise ValueError("Request params are required for vLLM.")
         messages = [
@@ -141,6 +232,15 @@ class vLLMProvider(BaseBatchProvider):
         }
     
     def convert_output_request_from_provider_to_unified(self, request: ChatCompletionsBatchOutputRequest) -> OutputRequest:
+        """
+        Convert vLLM (OpenAI-compatible) batch output request to unified output request.
+
+        Args:
+            request (ChatCompletionsBatchOutputRequest): The batch output item.
+
+        Returns:
+            OutputRequest: The unified output request.
+        """
         custom_id = request.custom_id
         if request.error is not None:
             error_template = "This request failed with the following error: {error.code} - {error.message}"
@@ -166,6 +266,17 @@ class vLLMProvider(BaseBatchProvider):
             )
     
     def convert_input_batch_from_unified_to_provider(self, batch: InputBatch) -> str:
+        """
+        Convert unified input batch to a JSONL file path for vLLM.
+
+        This method writes the batch requests to a temporary JSONL file and returns the file path.
+
+        Args:
+            batch (InputBatch): The unified input batch.
+
+        Returns:
+            str: The path to the temporary JSONL file.
+        """
         input_requests = [
             self.convert_input_request_from_unified_to_provider(request)
             for request in batch.requests
@@ -180,7 +291,15 @@ class vLLMProvider(BaseBatchProvider):
         return input_file_path
     
     def convert_output_batch_from_provider_to_unified(self, batch: str) -> OutputBatch:
-        """vLLM returns a file object, this method takes the file content and converts it to a OutputBatch."""
+        """
+        Convert vLLM output file content to unified output batch.
+
+        Args:
+            batch (str): The content of the output JSONL file as a string.
+
+        Returns:
+            OutputBatch: The unified output batch.
+        """
         lines = [line.strip() for line in batch.splitlines() if line.strip()]
         responses = [ChatCompletionsBatchOutputRequest.model_validate_json(line, extra="ignore") for line in lines]
         output_batch = OutputBatch(
@@ -192,19 +311,34 @@ class vLLMProvider(BaseBatchProvider):
         return output_batch
     
     def count_input_request_tokens(self, request: InputRequest) -> int:
+        """
+        Count input request tokens. Not supported for vLLM.
+
+        Raises:
+            NotImplementedError: Always.
+        """
         raise NotImplementedError("vLLM does not support input request token counting.")
     
     @override
     def count_input_batch_tokens(self, batch: InputBatch) -> int:
+        """
+        Count input batch tokens. Not supported for vLLM.
+
+        Raises:
+            NotImplementedError: Always.
+        """
         raise NotImplementedError("vLLM does not support input batch token counting.")
     
     def vllm_run_batch(self, input_file_path: str, output_file_path: str) -> int:
-        """Run the vLLM run-batch command.
+        """
+        Execute the vLLM run-batch command as a subprocess.
+
         Args:
-            input_file_path: The path to the input file.
-            output_file_path: The path to the output file.
+            input_file_path (str): The path to the input JSONL file.
+            output_file_path (str): The path where the output JSONL file should be written.
+
         Returns:
-            The PID of the vLLM run-batch process.
+            int: The PID of the vLLM process.
         """
         command = [
             "vllm",
@@ -224,11 +358,17 @@ class vLLMProvider(BaseBatchProvider):
         return process.pid
     
     def read_vllm_batch_id(self, batch_id: str) -> tuple[int, str]:
-        """Read the vLLM batch ID and return the PID and output file path.
+        """
+        Parse the vLLM batch ID to retrieve the PID and output file path.
+
         Args:
-            batch_id: The ID of the batch to read the ID of.
+            batch_id (str): The batch ID string.
+
         Returns:
-            The PID and output file path of the batch in a tuple.
+            tuple[int, str]: A tuple containing the PID and the output file path.
+
+        Raises:
+            ValueError: If the batch ID format is invalid.
         """
         pattern = r'vllm_pid_(\d+)_path_(.+)'
         match = re.search(pattern, batch_id)
@@ -240,6 +380,17 @@ class vLLMProvider(BaseBatchProvider):
             raise ValueError(f"Invalid vLLM batch_id: {batch_id}")
 
     def send_batch(self, input_batch: InputBatch) -> str:
+        """
+        Send the input batch to vLLM.
+
+        This method creates an input file, starts the vLLM process, and constructs a batch ID.
+
+        Args:
+            input_batch (InputBatch): The unified input batch.
+
+        Returns:
+            str: The constructed batch ID.
+        """
         input_file_path = self.convert_input_batch_from_unified_to_provider(input_batch)
         logger.info(f"Converted vLLM input batch to file path: {input_file_path}")
         output_file_path = f"temp_vllm_output_{dt.now().strftime('%Y%m%d%H%M%S')}.jsonl"
@@ -249,6 +400,15 @@ class vLLMProvider(BaseBatchProvider):
         return batch_id
     
     def poll_status(self, batch_id: str) -> BatchStatus:
+        """
+        Check the status of a running vLLM batch process.
+
+        Args:
+            batch_id (str): The batch ID.
+
+        Returns:
+            BatchStatus: The current status of the batch.
+        """
         pid, _ = self.read_vllm_batch_id(batch_id)
         try:
             process = psutil.Process(pid)
@@ -264,6 +424,20 @@ class vLLMProvider(BaseBatchProvider):
             return BatchStatus.COMPLETED
     
     def get_results(self, batch_id: str) -> OutputBatch:
+        """
+        Retrieve the results of a completed vLLM batch.
+
+        Waits for the output file to exist before reading it.
+
+        Args:
+            batch_id (str): The batch ID.
+
+        Returns:
+            OutputBatch: The unified output batch.
+
+        Raises:
+            TimeoutError: If the output file is not found within the timeout period.
+        """
         _, output_file_path = self.read_vllm_batch_id(batch_id)
         for i in range(100):
             if os.path.exists(output_file_path):

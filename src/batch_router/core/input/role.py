@@ -1,6 +1,14 @@
 from enum import Enum
 
 class InputMessageRole(Enum):
-    """Role of a message in a batch input. SYSTEM role is not supported, it must be in the request level."""
+    """
+    Enumeration representing the role of a message sender in an input batch.
+
+    Note: The SYSTEM role is not supported at the message level; it must be defined at the request level.
+
+    Attributes:
+        USER (str): Represents a message from the user.
+        ASSISTANT (str): Represents a message from the assistant.
+    """
     USER = "user"
     ASSISTANT = "assistant"

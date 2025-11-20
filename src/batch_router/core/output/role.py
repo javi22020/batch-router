@@ -1,6 +1,14 @@
 from enum import Enum
 
 class OutputMessageRole(Enum):
-    """Role of a message in a batch output. Only ASSISTANT and TOOL are supported, as the USER messages are not in the output."""
+    """
+    Enumeration representing the role of a message sender in an output batch.
+
+    Note: Only ASSISTANT and TOOL roles are supported in the output, as USER messages are part of the input.
+
+    Attributes:
+        ASSISTANT (str): Represents a message from the assistant.
+        TOOL (str): Represents a message from a tool.
+    """
     ASSISTANT = "assistant"
     TOOL = "tool"
