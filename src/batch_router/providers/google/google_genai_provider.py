@@ -13,7 +13,6 @@ from batch_router.core.output.request import OutputRequest
 from batch_router.utilities.mime_type import get_mime_type
 from batch_router.providers.google.google_genai_models import GoogleGenAIOutputRequest, GoogleGenAIInputRequestBody, GoogleGenAIInputRequest
 from batch_router.core.input.batch import InputBatch
-from batch_router.providers.google.google_genai_models import GoogleGenAIInputRequest
 import os
 import base64
 import tempfile
@@ -118,11 +117,11 @@ class GoogleGenAIProvider(BaseBatchProvider):
         elif content.modality == Modality.IMAGE:
             data = base64.b64decode(content.image_base64)
             mime_type = get_mime_type(data)
-            return types.Part.from_bytes(data, mime_type=mime_type)
+            return types.Part.from_bytes(data=data, mime_type=mime_type)
         elif content.modality == Modality.AUDIO:
             data = base64.b64decode(content.audio_base64)
             mime_type = get_mime_type(data)
-            return types.Part.from_bytes(data, mime_type=mime_type)
+            return types.Part.from_bytes(data=data, mime_type=mime_type)
         else:
             raise ValueError(f"Unsupported input content modality: {content.modality}")
         
