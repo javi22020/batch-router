@@ -24,6 +24,7 @@ from batch_router.core.base.request import InferenceParams
 from batch_router.providers.base.batch_provider import BaseBatchProvider
 from batch_router.providers.openai.chat_completions_models import ChatCompletionsBatchOutputRequest
 from logging import getLogger
+from vllm import LLM
 import os
 
 logger = getLogger(__name__)
@@ -39,6 +40,8 @@ class vLLMProvider(BaseBatchProvider):
         model_path (str): The path to the model to be used by vLLM.
         run_batch_kwargs (dict[str, Any] | None): Additional command-line arguments for the vLLM process.
     """
+    _llm: LLM | None = None
+    
     def __init__(self, model_path: str, run_batch_kwargs: dict[str, Any] | None = None) -> None:
         """
         Initialize the vLLMProvider.
