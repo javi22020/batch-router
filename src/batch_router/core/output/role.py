@@ -1,6 +1,6 @@
 from enum import Enum
 
-class OutputMessageRole(Enum):
+class OutputMessageRole(str, Enum):
     """
     Enumeration representing the role of a message sender in an output batch.
 
